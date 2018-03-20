@@ -12,8 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub extern crate wyvern_core;
-pub extern crate wyvern_cpu;
+#[derive(Debug)]
+pub struct Program {}
 
-pub use wyvern_core as core;
-pub use wyvern_cpu as cpu;
+#[derive(Debug, PartialEq, Eq)]
+pub enum VarType {
+    Constant(DataType),
+    Variable(DataType),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DataType {
+    Boolean,
+    Integer { signed: bool, bits: u8 },
+    Float { bits: u8 },
+}

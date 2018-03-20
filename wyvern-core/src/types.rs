@@ -12,8 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub extern crate wyvern_core;
-pub extern crate wyvern_cpu;
+use builder::{ProgramBuilder, ProgramObjectInfo};
+use std::marker::PhantomData;
 
-pub use wyvern_core as core;
-pub use wyvern_cpu as cpu;
+pub trait Type {}
+
+#[derive(Clone, Copy)]
+pub struct Constant<'a, T: Type> {
+    phantom: PhantomData<T>,
+    info: ProgramObjectInfo<'a>,
+}
+
+impl<'a, T: Type> Constant<'a, T> {
+    pub fn new(value: T, builder: &'a ProgramBuilder) -> Constant<'a, T> {
+        Constant {
+            phantom: PhantomData,
+            info: builder.gen_poi(),
+        }
+    }
+}
