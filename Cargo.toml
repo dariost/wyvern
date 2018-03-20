@@ -1,0 +1,8 @@
+[package]
+name = "wyvern"
+version = "0.1.0"
+authors = ["Dario Ostuni <dario.ostuni@gmail.com>"]
+
+[dependencies]
+wyvern-core = { path = "wyvern-core" }
+wyvern-cpu = { path = "wyvern-cpu" }

@@ -1,0 +1,6 @@
+[package]
+name = "wyvern-cpu"
+version = "0.1.0"
+authors = ["Dario Ostuni <dario.ostuni@gmail.com>"]
+
+[dependencies]
