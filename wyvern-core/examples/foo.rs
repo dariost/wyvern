@@ -3,13 +3,12 @@
 extern crate wyvern_core;
 
 use wyvern_core::builder::ProgramBuilder;
-use wyvern_core::types::Variable;
+use wyvern_core::types::{Constant, Variable};
 
 fn main() {
     let builder = ProgramBuilder::new();
-    Variable::new(&builder)
-        .mark_as_output("out")
-        .store(Variable::<f32>::new(&builder).mark_as_input("in").load() * 2.0);
+    let a = Constant::new(41, &builder);
+    let b = !a;
     let program = builder.finalize().unwrap();
     println!("{:?}", program);
 }

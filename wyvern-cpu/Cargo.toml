@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["Dario Ostuni <dario.ostuni@gmail.com>"]
 
 [dependencies]
+rand = "0.4"
+wyvern-core = { path = "../wyvern-core" }

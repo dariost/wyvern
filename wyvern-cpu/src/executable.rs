@@ -12,9 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate rand;
-extern crate wyvern_core as wcore;
+use wcore::executor::{Executable, IO};
+use std::sync::Arc;
+use resource::CpuResource;
 
-pub mod resource;
-pub mod executable;
-pub mod executor;
+#[derive(Debug)]
+pub struct CpuExecutable {}
+
+impl Executable for CpuExecutable {
+    type Error = String;
+    type Report = String;
+    type Resource = CpuResource;
+
+    fn bind<S: ToString>(&mut self, name: S, kind: IO, resource: Arc<CpuResource>) {}
+
+    fn unbind<S: ToString>(&mut self, name: S, kind: IO) {}
+
+    fn run(&mut self) -> Result<String, String> {
+        Ok(String::new())
+    }
+}

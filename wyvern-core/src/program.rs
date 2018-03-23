@@ -107,3 +107,21 @@ impl TokenId {
         prev
     }
 }
+
+pub fn get_token_type(value: &TokenValue) -> TokenType {
+    match *value {
+        TokenValue::Null => TokenType::Null,
+        TokenValue::Scalar(ref x) => TokenType::Variable(match *x {
+            ConstantScalar::Bool(_) => DataType::Bool,
+            ConstantScalar::I32(_) => DataType::I32,
+            ConstantScalar::U32(_) => DataType::U32,
+            ConstantScalar::F32(_) => DataType::F32,
+        }),
+        TokenValue::Vector(ref x) => TokenType::Vector(match *x {
+            ConstantVector::Bool(_) => DataType::Bool,
+            ConstantVector::I32(_) => DataType::I32,
+            ConstantVector::U32(_) => DataType::U32,
+            ConstantVector::F32(_) => DataType::F32,
+        }),
+    }
+}

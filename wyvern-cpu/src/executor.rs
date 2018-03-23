@@ -12,9 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate rand;
-extern crate wyvern_core as wcore;
-
-pub mod resource;
-pub mod executable;
-pub mod executor;
+#[derive(Debug)]
+pub struct CpuExecutor {}

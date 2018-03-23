@@ -14,17 +14,18 @@
 
 use std::hash::Hash;
 use program::{Program, TokenType, TokenValue};
+use std::sync::Arc;
 
-pub trait Executor<'a> {
+pub trait Executor {
     type Config: Default + Clone;
     type Error: ToString;
-    type Executable: Executable<'a>;
+    type Executable: Executable;
     type Resource: Resource;
     fn new(config: Self::Config) -> Result<Self, Self::Error>
     where
         Self: Sized;
     fn compile(&self, program: Program) -> Result<Self::Executable, Self::Error>;
-    fn new_resource(&self) -> Result<Self::Resource, Self::Error>;
+    fn new_resource(&self) -> Result<Arc<Self::Resource>, Self::Error>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,12 +34,13 @@ pub enum IO {
     Output,
 }
 
-pub trait Executable<'a> {
+pub trait Executable {
     type Resource: Resource;
     type Error: ToString;
     type Report: ToString;
-    fn bind<S: ToString>(&'a mut self, name: S, kind: IO, res: &'a Self::Resource);
-    fn unbind<S: ToString>(&self, name: S, kind: IO);
+    fn bind<S: ToString>(&mut self, name: S, kind: IO, res: Arc<Self::Resource>);
+    fn unbind<S: ToString>(&mut self, name: S, kind: IO);
+    fn run(&mut self) -> Result<Self::Report, Self::Error>;
 }
 
 pub trait Resource: Eq + Hash {
