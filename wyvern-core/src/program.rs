@@ -12,18 +12,67 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[derive(Debug)]
-pub struct Program {}
+use std::collections::HashMap;
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum VarType {
+#[derive(Debug, Clone, Default)]
+pub struct Program {
+    pub(crate) symbols: HashMap<TokenId, TokenType>,
+    pub(crate) operations: Vec<Op>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum TokenType {
     Constant(DataType),
     Variable(DataType),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum DataType {
-    Boolean,
-    Integer { signed: bool, bits: u8 },
-    Float { bits: u8 },
+    Bool,
+    I32,
+    U32,
+    F32,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum ConstantValue {
+    Bool(bool),
+    I32(i32),
+    U32(u32),
+    F32(f32),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
+pub struct TokenId(u32);
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Token {
+    pub(crate) id: TokenId,
+    pub(crate) ty: TokenType,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Op {
+    Block(Vec<Op>),
+    Constant(TokenId, ConstantValue),
+    Add(TokenId, TokenId, TokenId),
+    Sub(TokenId, TokenId, TokenId),
+    Mul(TokenId, TokenId, TokenId),
+    Div(TokenId, TokenId, TokenId),
+    Rem(TokenId, TokenId, TokenId),
+    Neg(TokenId, TokenId),
+    Not(TokenId, TokenId),
+    Shl(TokenId, TokenId, TokenId),
+    Shr(TokenId, TokenId, TokenId),
+    BitAnd(TokenId, TokenId, TokenId),
+    BitOr(TokenId, TokenId, TokenId),
+    BitXor(TokenId, TokenId, TokenId),
+}
+
+impl TokenId {
+    pub(crate) fn next(&mut self) -> TokenId {
+        let prev = *self;
+        self.0 += 1;
+        prev
+    }
 }
