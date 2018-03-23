@@ -16,14 +16,18 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct Program {
-    pub(crate) symbols: HashMap<TokenId, TokenType>,
-    pub(crate) operations: Vec<Op>,
+    pub(crate) symbol: HashMap<TokenId, TokenType>,
+    pub(crate) operation: Vec<Op>,
+    pub(crate) input: HashMap<String, TokenId>,
+    pub(crate) output: HashMap<String, TokenId>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType {
     Constant(DataType),
     Variable(DataType),
+    Vector(DataType),
+    Null,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -34,12 +38,27 @@ pub enum DataType {
     F32,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum TokenValue {
+    Scalar(ConstantScalar),
+    Vector(ConstantVector),
+    Null,
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum ConstantValue {
+pub enum ConstantScalar {
     Bool(bool),
     I32(i32),
     U32(u32),
     F32(f32),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ConstantVector {
+    Bool(Vec<bool>),
+    I32(Vec<i32>),
+    U32(Vec<u32>),
+    F32(Vec<f32>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
@@ -54,7 +73,19 @@ pub struct Token {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Op {
     Block(Vec<Op>),
-    Constant(TokenId, ConstantValue),
+    MemoryBarrier,
+    ControlBarrier,
+    WorkerId(TokenId),
+    NumWorkers(TokenId),
+    Load(TokenId, TokenId),
+    Store(TokenId, TokenId),
+    Constant(TokenId, ConstantScalar),
+    U32fromF32(TokenId, TokenId),
+    I32fromF32(TokenId, TokenId),
+    F32fromU32(TokenId, TokenId),
+    F32fromI32(TokenId, TokenId),
+    I32fromU32(TokenId, TokenId),
+    U32fromI32(TokenId, TokenId),
     Add(TokenId, TokenId, TokenId),
     Sub(TokenId, TokenId, TokenId),
     Mul(TokenId, TokenId, TokenId),

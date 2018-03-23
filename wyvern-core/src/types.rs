@@ -12,22 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use builder::{ProgramBuilder, ProgramObjectInfo};
-use program::{ConstantValue, DataType, Op, TokenType};
+use builder::{ProgramBuilder, ProgramObjectInfo, WorkerMessage};
+use program::{ConstantScalar, DataType, Op, TokenType};
 use std::marker::PhantomData;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 use num::Unsigned;
+use std::string::ToString;
 
 pub trait Type: Copy + PartialEq + Default {
     type TrueType;
     fn data_type() -> DataType;
-    fn symbol_constant(&self) -> ConstantValue;
+    fn symbol_constant(&self) -> ConstantScalar;
 }
 
 #[derive(Clone, Copy)]
 pub struct Constant<'a, T: Type> {
     phantom: PhantomData<T>,
-    info: ProgramObjectInfo<'a>,
+    pub(crate) info: ProgramObjectInfo<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub struct Variable<'a, T: Type> {
+    phantom: PhantomData<T>,
+    pub(crate) info: ProgramObjectInfo<'a>,
 }
 
 macro_rules! impl_type {
@@ -37,8 +44,8 @@ macro_rules! impl_type {
             fn data_type() -> DataType {
                 DataType::$upper
             }
-            fn symbol_constant(&self) -> ConstantValue {
-                ConstantValue::$upper(*self)
+            fn symbol_constant(&self) -> ConstantScalar {
+                ConstantScalar::$upper(*self)
             }
         }
     };
@@ -139,6 +146,21 @@ macro_rules! impl_shift_op_immediate {
     };
 }
 
+macro_rules! impl_conversion {
+    ($lower1: ident, $lower2: ident, $conv: ident) => {
+        impl<'a> From<Constant<'a, $lower1>> for Constant<'a, $lower2> {
+            fn from(obj: Constant<'a, $lower1>) -> Constant<'a, $lower2> {
+                let result = Constant::generate(obj.info.builder);
+                result
+                    .info
+                    .builder
+                    .add_operation(Op::$conv(result.info.token.id, obj.info.token.id));
+                result
+            }
+        }
+    };
+}
+
 impl<'a, T: Type> Constant<'a, T> {
     pub fn new(value: T, builder: &'a ProgramBuilder) -> Constant<'a, T> {
         let constant = Self::generate(builder);
@@ -149,11 +171,54 @@ impl<'a, T: Type> Constant<'a, T> {
         constant
     }
 
-    fn generate(builder: &'a ProgramBuilder) -> Constant<'a, T> {
+    pub(crate) fn generate(builder: &'a ProgramBuilder) -> Constant<'a, T> {
         Constant {
             phantom: PhantomData,
             info: builder.gen_token(TokenType::Constant(T::data_type())),
         }
+    }
+}
+
+impl<'a, T: Type> Variable<'a, T> {
+    pub fn new(builder: &'a ProgramBuilder) -> Variable<'a, T> {
+        Variable {
+            phantom: PhantomData,
+            info: builder.gen_token(TokenType::Variable(T::data_type())),
+        }
+    }
+
+    pub fn load(&self) -> Constant<'a, T> {
+        let result = Constant::generate(self.info.builder);
+        result
+            .info
+            .builder
+            .add_operation(Op::Load(result.info.token.id, self.info.token.id));
+        result
+    }
+
+    pub fn store(&self, object: Constant<'a, T>) {
+        assert_eq!(self.info.builder, object.info.builder);
+        self.info
+            .builder
+            .add_operation(Op::Store(self.info.token.id, object.info.token.id));
+    }
+
+    pub fn mark_as_input<S: ToString>(&self, name: S) -> Self {
+        let name = name;
+        self.info.builder.send_message(WorkerMessage::MarkInput(
+            self.info.token.id,
+            name.to_string(),
+        ));
+        *self
+    }
+
+    pub fn mark_as_output<S: ToString>(&self, name: S) -> Self {
+        let name = name;
+        self.info.builder.send_message(WorkerMessage::MarkOutput(
+            self.info.token.id,
+            name.to_string(),
+        ));
+        *self
     }
 }
 
@@ -185,3 +250,10 @@ impl_shift_op_immediate!(shr, Shr);
 impl_binary_op_immediate!(bitand, BitAnd);
 impl_binary_op_immediate!(bitor, BitOr);
 impl_binary_op_immediate!(bitxor, BitXor);
+
+impl_conversion!(i32, u32, U32fromI32);
+impl_conversion!(i32, f32, F32fromI32);
+impl_conversion!(u32, i32, I32fromU32);
+impl_conversion!(u32, f32, F32fromU32);
+impl_conversion!(f32, i32, I32fromF32);
+impl_conversion!(f32, u32, U32fromF32);

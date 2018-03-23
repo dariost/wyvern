@@ -17,6 +17,7 @@ use std::thread::{spawn, JoinHandle};
 use program::{Op, Program, Token, TokenId, TokenType};
 use rand::{thread_rng, Rng};
 use std::cmp::{Eq, PartialEq};
+use types::Constant;
 
 #[derive(Debug)]
 pub struct ProgramBuilder {
@@ -32,12 +33,14 @@ pub(crate) struct ProgramObjectInfo<'a> {
 }
 
 #[derive(Debug)]
-enum WorkerMessage {
+pub(crate) enum WorkerMessage {
     Finalize,
     GenerateToken(SyncSender<TokenId>, TokenType),
     PushBlock,
     PopBlock(SyncSender<Vec<Op>>),
     AddOperation(Op),
+    MarkInput(TokenId, String),
+    MarkOutput(TokenId, String),
 }
 
 impl<'a> ProgramBuilder {
@@ -50,16 +53,34 @@ impl<'a> ProgramBuilder {
         }
     }
 
-    pub fn finalize(self) -> Program {
-        self.worker_queue.send(WorkerMessage::Finalize).unwrap();
-        self.worker_thread.join().unwrap()
+    pub fn finalize(self) -> Result<Program, String> {
+        self.send_message(WorkerMessage::Finalize);
+        Ok(self.worker_thread.join().unwrap())
+    }
+
+    pub fn memory_barrier(&self) {
+        self.add_operation(Op::MemoryBarrier);
+    }
+
+    pub fn control_barrier(&self) {
+        self.add_operation(Op::ControlBarrier);
+    }
+
+    pub fn worker_id(&'a self) -> Constant<'a, u32> {
+        let result = Constant::generate(self);
+        self.add_operation(Op::WorkerId(result.info.token.id));
+        result
+    }
+
+    pub fn num_workers(&'a self) -> Constant<'a, u32> {
+        let result = Constant::generate(self);
+        self.add_operation(Op::NumWorkers(result.info.token.id));
+        result
     }
 
     pub(crate) fn gen_token(&'a self, ty: TokenType) -> ProgramObjectInfo<'a> {
         let (tx, rx) = mpsc::sync_channel(0);
-        self.worker_queue
-            .send(WorkerMessage::GenerateToken(tx, ty))
-            .unwrap();
+        self.send_message(WorkerMessage::GenerateToken(tx, ty));
         ProgramObjectInfo {
             token: Token {
                 id: rx.recv().unwrap(),
@@ -70,9 +91,11 @@ impl<'a> ProgramBuilder {
     }
 
     pub(crate) fn add_operation(&self, op: Op) {
-        self.worker_queue
-            .send(WorkerMessage::AddOperation(op))
-            .unwrap();
+        self.send_message(WorkerMessage::AddOperation(op));
+    }
+
+    pub(crate) fn send_message(&self, msg: WorkerMessage) {
+        self.worker_queue.send(msg).unwrap();
     }
 }
 
@@ -101,12 +124,12 @@ fn worker(queue: Receiver<WorkerMessage>) -> Program {
         match message {
             WorkerMessage::Finalize => {
                 assert_eq!(block_stack.len(), 0);
-                prog.operations = block_stack_top;
+                prog.operation = block_stack_top;
                 break prog;
             }
             WorkerMessage::GenerateToken(tx, ty) => {
                 let id = token_id.next();
-                let insert_result = prog.symbols.insert(id, ty);
+                let insert_result = prog.symbol.insert(id, ty);
                 assert!(insert_result.is_none());
                 tx.send(id).unwrap();
             }
@@ -121,6 +144,12 @@ fn worker(queue: Receiver<WorkerMessage>) -> Program {
             }
             WorkerMessage::AddOperation(op) => {
                 block_stack_top.push(op);
+            }
+            WorkerMessage::MarkInput(id, name) => {
+                prog.input.insert(name, id);
+            }
+            WorkerMessage::MarkOutput(id, name) => {
+                prog.output.insert(name, id);
             }
         }
     }
