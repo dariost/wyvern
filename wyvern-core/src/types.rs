@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use builder::{ProgramBuilder, ProgramObjectInfo, WorkerMessage};
+use num::Integer;
 use program::{ConstantScalar, DataType, Op, TokenType};
 use std::marker::PhantomData;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
-use num::Unsigned;
 use std::string::ToString;
 
 pub trait Type: Copy + PartialEq + Default {
@@ -108,7 +108,7 @@ macro_rules! impl_binary_op_immediate {
 
 macro_rules! impl_shift_op {
     ($lower: ident, $upper: ident) => {
-        impl<'a, U: Type + Unsigned, T: Type + $upper<U>> $upper<Constant<'a, U>>
+        impl<'a, U: Type + Integer, T: Type + $upper<U>> $upper<Constant<'a, U>>
             for Constant<'a, T>
         {
             type Output = Constant<'a, T>;
@@ -129,7 +129,7 @@ macro_rules! impl_shift_op {
 
 macro_rules! impl_shift_op_immediate {
     ($lower: ident, $upper: ident) => {
-        impl<'a, U: Type + Unsigned, T: Type + $upper<U>> $upper<U> for Constant<'a, T> {
+        impl<'a, U: Type + Integer, T: Type + $upper<U>> $upper<U> for Constant<'a, T> {
             type Output = Constant<'a, T>;
 
             fn $lower(self, rhs: U) -> Self::Output {

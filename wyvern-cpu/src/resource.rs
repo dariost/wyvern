@@ -13,30 +13,31 @@
 // limitations under the License.
 
 use std::hash::{Hash, Hasher};
-use wcore::program::{get_token_type, TokenType, TokenValue};
+use std::sync::Mutex;
 use wcore::executor::Resource;
+use wcore::program::{get_token_type, TokenType, TokenValue};
 
 #[derive(Debug)]
 pub struct CpuResource {
-    id: u64,
-    data: TokenValue,
+    pub(crate) id: u64,
+    pub(crate) data: Mutex<TokenValue>,
 }
 
 impl Resource for CpuResource {
-    fn clear(&mut self) {
-        self.data = TokenValue::Null;
+    fn clear(&self) {
+        *self.data.lock().unwrap() = TokenValue::Null;
     }
 
     fn token_type(&self) -> TokenType {
-        get_token_type(&self.data)
+        get_token_type(&self.data.lock().unwrap())
     }
 
     fn get_data(&self) -> TokenValue {
-        self.data.clone()
+        self.data.lock().unwrap().clone()
     }
 
-    fn set_data(&mut self, value: TokenValue) {
-        self.data = value;
+    fn set_data(&self, value: TokenValue) {
+        *self.data.lock().unwrap() = value;
     }
 }
 

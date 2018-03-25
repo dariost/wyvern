@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::hash::Hash;
 use program::{Program, TokenType, TokenValue};
+use std::hash::Hash;
 use std::sync::Arc;
 
 pub trait Executor {
@@ -28,7 +28,7 @@ pub trait Executor {
     fn new_resource(&self) -> Result<Arc<Self::Resource>, Self::Error>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IO {
     Input,
     Output,
@@ -38,14 +38,19 @@ pub trait Executable {
     type Resource: Resource;
     type Error: ToString;
     type Report: ToString;
-    fn bind<S: ToString>(&mut self, name: S, kind: IO, res: Arc<Self::Resource>);
-    fn unbind<S: ToString>(&mut self, name: S, kind: IO);
+    fn bind<S: ToString>(
+        &mut self,
+        name: S,
+        kind: IO,
+        res: Arc<Self::Resource>,
+    ) -> Option<Arc<Self::Resource>>;
+    fn unbind<S: ToString>(&mut self, name: S, kind: IO) -> Option<Arc<Self::Resource>>;
     fn run(&mut self) -> Result<Self::Report, Self::Error>;
 }
 
 pub trait Resource: Eq + Hash {
-    fn clear(&mut self);
+    fn clear(&self);
     fn token_type(&self) -> TokenType;
-    fn set_data(&mut self, value: TokenValue);
+    fn set_data(&self, value: TokenValue);
     fn get_data(&self) -> TokenValue;
 }

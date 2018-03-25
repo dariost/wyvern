@@ -12,5 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use executable::CpuExecutable;
+use rand::{thread_rng, Rng};
+use resource::CpuResource;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use wcore::executor::Executor;
+use wcore::program::{Program, TokenValue};
+
 #[derive(Debug)]
 pub struct CpuExecutor {}
+
+impl Executor for CpuExecutor {
+    type Config = ();
+    type Error = String;
+    type Resource = CpuResource;
+    type Executable = CpuExecutable;
+
+    fn new(_config: ()) -> Result<CpuExecutor, String> {
+        Ok(CpuExecutor {})
+    }
+
+    fn compile(&self, program: Program) -> Result<CpuExecutable, String> {
+        Ok(CpuExecutable {
+            program,
+            binding: HashMap::new(),
+        })
+    }
+
+    fn new_resource(&self) -> Result<Arc<CpuResource>, String> {
+        Ok(Arc::new(CpuResource {
+            id: thread_rng().next_u64(),
+            data: Mutex::new(TokenValue::Null),
+        }))
+    }
+}

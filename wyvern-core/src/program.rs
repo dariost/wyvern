@@ -16,10 +16,10 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct Program {
-    pub(crate) symbol: HashMap<TokenId, TokenType>,
-    pub(crate) operation: Vec<Op>,
-    pub(crate) input: HashMap<String, TokenId>,
-    pub(crate) output: HashMap<String, TokenId>,
+    pub symbol: HashMap<TokenId, TokenType>,
+    pub operation: Vec<Op>,
+    pub input: HashMap<String, TokenId>,
+    pub output: HashMap<String, TokenId>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
