@@ -26,7 +26,8 @@ pub struct Program {
 pub enum TokenType {
     Constant(DataType),
     Variable(DataType),
-    Vector(DataType),
+    ArrayPointer(DataType),
+    Array(DataType),
     Null,
 }
 
@@ -79,6 +80,10 @@ pub enum Op {
     NumWorkers(TokenId),
     Load(TokenId, TokenId),
     Store(TokenId, TokenId),
+    ArrayNew(TokenId, TokenId),
+    ArrayLen(TokenId, TokenId),
+    ArrayLoad(TokenId, TokenId, TokenId),
+    ArrayStore(TokenId, TokenId, TokenId),
     Constant(TokenId, ConstantScalar),
     U32fromF32(TokenId, TokenId),
     I32fromF32(TokenId, TokenId),
@@ -98,6 +103,12 @@ pub enum Op {
     BitAnd(TokenId, TokenId, TokenId),
     BitOr(TokenId, TokenId, TokenId),
     BitXor(TokenId, TokenId, TokenId),
+    Eq(TokenId, TokenId, TokenId),
+    Ne(TokenId, TokenId, TokenId),
+    Lt(TokenId, TokenId, TokenId),
+    Le(TokenId, TokenId, TokenId),
+    Gt(TokenId, TokenId, TokenId),
+    Ge(TokenId, TokenId, TokenId),
 }
 
 impl TokenId {
@@ -117,7 +128,7 @@ pub fn get_token_type(value: &TokenValue) -> TokenType {
             ConstantScalar::U32(_) => DataType::U32,
             ConstantScalar::F32(_) => DataType::F32,
         }),
-        TokenValue::Vector(ref x) => TokenType::Vector(match *x {
+        TokenValue::Vector(ref x) => TokenType::Array(match *x {
             ConstantVector::Bool(_) => DataType::Bool,
             ConstantVector::I32(_) => DataType::I32,
             ConstantVector::U32(_) => DataType::U32,

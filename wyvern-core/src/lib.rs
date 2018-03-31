@@ -15,7 +15,7 @@
 extern crate num;
 extern crate rand;
 
-pub mod program;
-pub mod types;
 pub mod builder;
 pub mod executor;
+pub mod program;
+pub mod types;

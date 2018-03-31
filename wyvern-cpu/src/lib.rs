@@ -15,6 +15,6 @@
 extern crate rand;
 extern crate wyvern_core as wcore;
 
-pub mod resource;
 pub mod executable;
 pub mod executor;
+pub mod resource;

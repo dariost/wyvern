@@ -54,16 +54,18 @@ impl CpuExecutable {
         for (name, id) in &self.program.input {
             let value = self.binding
                 .get(&(IO::Input, name.clone()))
-                .ok_or(format!("Missing input {}", name))?;
+                .ok_or_else(|| format!("Missing input {}", name))?;
             memory.insert(*id, value.get_data());
         }
         let operations = self.program.operation.clone();
         self.run_block(&operations, &mut memory)?;
         for (name, id) in &self.program.output {
-            let value = memory.remove(id).ok_or(format!("Missing output {}", name))?;
+            let value = memory
+                .remove(id)
+                .ok_or_else(|| format!("Missing output {}", name))?;
             self.binding
                 .get(&(IO::Output, name.clone()))
-                .ok_or(format!("Missing output {}", name))?
+                .ok_or_else(|| format!("Missing output {}", name))?
                 .set_data(value);
         }
         Ok("Completed!".into())
@@ -71,7 +73,7 @@ impl CpuExecutable {
 
     fn run_block(
         &mut self,
-        block: &Vec<Op>,
+        block: &[Op],
         memory: &mut HashMap<TokenId, TokenValue>,
     ) -> Result<(), String> {
         for op in block {
@@ -135,7 +137,9 @@ impl CpuExecutable {
         memory: &HashMap<TokenId, TokenValue>,
         id: TokenId,
     ) -> Result<ConstantScalar, String> {
-        let value = memory.get(&id).ok_or(format!("{:?} doesn't exist!", id))?;
+        let value = memory
+            .get(&id)
+            .ok_or_else(|| format!("{:?} doesn't exist!", id))?;
         match *value {
             TokenValue::Scalar(x) => Ok(x),
             _ => unreachable!(),
@@ -183,7 +187,7 @@ impl CpuExecutable {
 }
 
 macro_rules! impl_get_type {
-    ($lower: ty, $upper: ident, $fn_name: ident) => {
+    ($lower:ty, $upper:ident, $fn_name:ident) => {
         impl CpuExecutable {
             fn $fn_name(
                 memory: &HashMap<TokenId, TokenValue>,
@@ -200,7 +204,7 @@ macro_rules! impl_get_type {
 }
 
 macro_rules! impl_binary_op {
-    ($fn_name: ident, $lower: ident, $upper: ident) => {
+    ($fn_name:ident, $lower:ident, $upper:ident) => {
         impl CpuExecutable {
             fn $fn_name(
                 memory: &mut HashMap<TokenId, TokenValue>,
@@ -230,7 +234,7 @@ macro_rules! impl_binary_op {
 }
 
 macro_rules! impl_binary_shift_op {
-    ($fn_name: ident, $lower: ident, $upper: ident) => {
+    ($fn_name:ident, $lower:ident, $upper:ident) => {
         impl CpuExecutable {
             fn $fn_name(
                 memory: &mut HashMap<TokenId, TokenValue>,
@@ -263,7 +267,7 @@ macro_rules! impl_binary_shift_op {
 }
 
 macro_rules! impl_binary_binary_op {
-    ($fn_name: ident, $lower: ident, $upper: ident) => {
+    ($fn_name:ident, $lower:ident, $upper:ident) => {
         impl CpuExecutable {
             fn $fn_name(
                 memory: &mut HashMap<TokenId, TokenValue>,

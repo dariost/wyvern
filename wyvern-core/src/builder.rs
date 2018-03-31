@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::mpsc::{self, Receiver, SyncSender};
-use std::thread::{spawn, JoinHandle};
 use program::{Op, Program, Token, TokenId, TokenType};
 use rand::{thread_rng, Rng};
 use std::cmp::{Eq, PartialEq};
+use std::sync::mpsc::{self, Receiver, SyncSender};
+use std::thread::{spawn, JoinHandle};
 use types::Constant;
 
 #[derive(Debug)]
