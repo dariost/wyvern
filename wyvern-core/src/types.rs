@@ -292,10 +292,11 @@ impl<'a, T: Type> Array<'a, T> {
             phantom: PhantomData,
             info: builder.gen_token(TokenType::Array(T::data_type())),
         };
-        result
-            .info
-            .builder
-            .add_operation(Op::ArrayNew(result.info.token.id, size.info.token.id));
+        result.info.builder.add_operation(Op::ArrayNew(
+            result.info.token.id,
+            size.info.token.id,
+            T::data_type(),
+        ));
         result
     }
 

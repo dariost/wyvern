@@ -17,7 +17,8 @@ use std::collections::HashMap;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
 use std::sync::Arc;
 use wcore::executor::{Executable, Resource, IO};
-use wcore::program::{ConstantScalar, Op, Program, TokenId, TokenValue};
+use wcore::program::DataType;
+use wcore::program::{ConstantScalar, ConstantVector, Op, Program, TokenId, TokenValue};
 
 #[derive(Debug)]
 pub struct CpuExecutable {
@@ -85,36 +86,36 @@ impl CpuExecutable {
                 Op::NumWorkers(r) => Self::insert_scalar(memory, r, ConstantScalar::U32(1)),
                 Op::Load(r, a) => {
                     let v = Self::get_scalar(memory, a)?;
-                    Self::insert_scalar(memory, r, v)
+                    Self::insert_scalar(memory, r, v);
                 }
                 Op::Store(r, a) => {
                     let v = Self::get_scalar(memory, a)?;
-                    Self::insert_scalar(memory, r, v)
+                    Self::insert_scalar(memory, r, v);
                 }
                 Op::Constant(r, a) => Self::insert_scalar(memory, r, a),
                 Op::U32fromF32(r, a) => {
                     let v = Self::get_f32(memory, a)?;
-                    Self::insert_scalar(memory, r, ConstantScalar::U32(v as u32))
+                    Self::insert_scalar(memory, r, ConstantScalar::U32(v as u32));
                 }
                 Op::I32fromF32(r, a) => {
                     let v = Self::get_f32(memory, a)?;
-                    Self::insert_scalar(memory, r, ConstantScalar::I32(v as i32))
+                    Self::insert_scalar(memory, r, ConstantScalar::I32(v as i32));
                 }
                 Op::F32fromU32(r, a) => {
                     let v = Self::get_u32(memory, a)?;
-                    Self::insert_scalar(memory, r, ConstantScalar::F32(v as f32))
+                    Self::insert_scalar(memory, r, ConstantScalar::F32(v as f32));
                 }
                 Op::F32fromI32(r, a) => {
                     let v = Self::get_i32(memory, a)?;
-                    Self::insert_scalar(memory, r, ConstantScalar::F32(v as f32))
+                    Self::insert_scalar(memory, r, ConstantScalar::F32(v as f32));
                 }
                 Op::I32fromU32(r, a) => {
                     let v = Self::get_u32(memory, a)?;
-                    Self::insert_scalar(memory, r, ConstantScalar::I32(v as i32))
+                    Self::insert_scalar(memory, r, ConstantScalar::I32(v as i32));
                 }
                 Op::U32fromI32(r, a) => {
                     let v = Self::get_i32(memory, a)?;
-                    Self::insert_scalar(memory, r, ConstantScalar::U32(v as u32))
+                    Self::insert_scalar(memory, r, ConstantScalar::U32(v as u32));
                 }
                 Op::Add(r, a, b) => Self::op_add(memory, r, a, b)?,
                 Op::Sub(r, a, b) => Self::op_sub(memory, r, a, b)?,
@@ -128,6 +129,25 @@ impl CpuExecutable {
                 Op::BitAnd(r, a, b) => Self::op_bitand(memory, r, a, b)?,
                 Op::BitOr(r, a, b) => Self::op_bitor(memory, r, a, b)?,
                 Op::BitXor(r, a, b) => Self::op_bitxor(memory, r, a, b)?,
+                Op::ArrayNew(r, s, t) => {
+                    let s = Self::get_u32(memory, s)?;
+                    Self::new_vector(memory, r, s, t);
+                }
+                Op::ArrayLen(r, v) => {
+                    let v = Self::get_vector_length(memory, v)?;
+                    Self::insert_scalar(memory, r, ConstantScalar::U32(v));
+                }
+                Op::ArrayStore(v, i, a) => Self::insert_vector(memory, v, i, a)?,
+                Op::ArrayLoad(r, v, i) => {
+                    let v = Self::index_vector(memory, v, i)?;
+                    Self::insert_scalar(memory, r, v);
+                }
+                Op::Eq(r, a, b) => Self::op_eq(memory, r, a, b)?,
+                Op::Ne(r, a, b) => Self::op_ne(memory, r, a, b)?,
+                Op::Lt(r, a, b) => Self::op_lt(memory, r, a, b)?,
+                Op::Le(r, a, b) => Self::op_le(memory, r, a, b)?,
+                Op::Gt(r, a, b) => Self::op_gt(memory, r, a, b)?,
+                Op::Ge(r, a, b) => Self::op_ge(memory, r, a, b)?,
             }
         }
         Ok(())
@@ -146,12 +166,95 @@ impl CpuExecutable {
         }
     }
 
+    fn get_vector_mut(
+        memory: &mut HashMap<TokenId, TokenValue>,
+        v: TokenId,
+    ) -> Result<&mut ConstantVector, String> {
+        let value = memory
+            .get_mut(&v)
+            .ok_or_else(|| format!("{:?} doesn't exist!", v))?;
+        match *value {
+            TokenValue::Vector(ref mut x) => Ok(x),
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_vector(
+        memory: &HashMap<TokenId, TokenValue>,
+        v: TokenId,
+    ) -> Result<&ConstantVector, String> {
+        let value = memory
+            .get(&v)
+            .ok_or_else(|| format!("{:?} doesn't exist!", v))?;
+        match *value {
+            TokenValue::Vector(ref x) => Ok(x),
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_vector_length(memory: &HashMap<TokenId, TokenValue>, v: TokenId) -> Result<u32, String> {
+        Ok(match *Self::get_vector(memory, v)? {
+            ConstantVector::I32(ref x) => x.len(),
+            ConstantVector::U32(ref x) => x.len(),
+            ConstantVector::F32(ref x) => x.len(),
+            ConstantVector::Bool(ref x) => x.len(),
+        } as u32)
+    }
+
+    fn insert_vector(
+        memory: &mut HashMap<TokenId, TokenValue>,
+        v: TokenId,
+        i: TokenId,
+        a: TokenId,
+    ) -> Result<(), String> {
+        let a = Self::get_scalar(memory, a)?;
+        let i = Self::get_u32(memory, i)? as usize;
+        let v = Self::get_vector_mut(memory, v)?;
+        match (v, a) {
+            (&mut ConstantVector::I32(ref mut v), ConstantScalar::I32(a)) => v[i] = a,
+            (&mut ConstantVector::U32(ref mut v), ConstantScalar::U32(a)) => v[i] = a,
+            (&mut ConstantVector::F32(ref mut v), ConstantScalar::F32(a)) => v[i] = a,
+            (&mut ConstantVector::Bool(ref mut v), ConstantScalar::Bool(a)) => v[i] = a,
+            _ => unreachable!(),
+        };
+        Ok(())
+    }
+
+    fn index_vector(
+        memory: &mut HashMap<TokenId, TokenValue>,
+        v: TokenId,
+        i: TokenId,
+    ) -> Result<ConstantScalar, String> {
+        let v = Self::get_vector(memory, v)?;
+        let i = Self::get_u32(memory, i)? as usize;
+        Ok(match *v {
+            ConstantVector::I32(ref v) => ConstantScalar::I32(v[i]),
+            ConstantVector::U32(ref v) => ConstantScalar::U32(v[i]),
+            ConstantVector::F32(ref v) => ConstantScalar::F32(v[i]),
+            ConstantVector::Bool(ref v) => ConstantScalar::Bool(v[i]),
+        })
+    }
+
     fn insert_scalar(
         memory: &mut HashMap<TokenId, TokenValue>,
         id: TokenId,
         value: ConstantScalar,
     ) {
         memory.insert(id, TokenValue::Scalar(value));
+    }
+
+    fn new_vector(memory: &mut HashMap<TokenId, TokenValue>, id: TokenId, s: u32, t: DataType) {
+        let s = s as usize;
+        match t {
+            DataType::I32 => memory.insert(id, TokenValue::Vector(ConstantVector::I32(vec![0; s]))),
+            DataType::U32 => memory.insert(id, TokenValue::Vector(ConstantVector::U32(vec![0; s]))),
+            DataType::F32 => {
+                memory.insert(id, TokenValue::Vector(ConstantVector::F32(vec![0.0; s])))
+            }
+            DataType::Bool => {
+                memory.insert(id, TokenValue::Vector(ConstantVector::Bool(vec![false; s])))
+            }
+        };
     }
 
     fn op_neg(
@@ -296,6 +399,69 @@ macro_rules! impl_binary_binary_op {
     };
 }
 
+macro_rules! impl_binary_ord_op {
+    ($fn_name:ident, $lower:ident, $upper:ident) => {
+        impl CpuExecutable {
+            fn $fn_name(
+                memory: &mut HashMap<TokenId, TokenValue>,
+                r: TokenId,
+                a: TokenId,
+                b: TokenId,
+            ) -> Result<(), String> {
+                let a = Self::get_scalar(memory, a)?;
+                let b = Self::get_scalar(memory, b)?;
+                let v = match (a, b) {
+                    (ConstantScalar::U32(x), ConstantScalar::U32(y)) => {
+                        ConstantScalar::Bool(PartialOrd::$lower(&x, &y))
+                    }
+                    (ConstantScalar::I32(x), ConstantScalar::I32(y)) => {
+                        ConstantScalar::Bool(PartialOrd::$lower(&x, &y))
+                    }
+                    (ConstantScalar::F32(x), ConstantScalar::F32(y)) => {
+                        ConstantScalar::Bool(PartialOrd::$lower(&x, &y))
+                    }
+                    _ => unreachable!(),
+                };
+                Self::insert_scalar(memory, r, v);
+                Ok(())
+            }
+        }
+    };
+}
+
+macro_rules! impl_binary_eq_op {
+    ($fn_name:ident, $lower:ident, $upper:ident) => {
+        impl CpuExecutable {
+            fn $fn_name(
+                memory: &mut HashMap<TokenId, TokenValue>,
+                r: TokenId,
+                a: TokenId,
+                b: TokenId,
+            ) -> Result<(), String> {
+                let a = Self::get_scalar(memory, a)?;
+                let b = Self::get_scalar(memory, b)?;
+                let v = match (a, b) {
+                    (ConstantScalar::U32(x), ConstantScalar::U32(y)) => {
+                        ConstantScalar::Bool(PartialEq::$lower(&x, &y))
+                    }
+                    (ConstantScalar::I32(x), ConstantScalar::I32(y)) => {
+                        ConstantScalar::Bool(PartialEq::$lower(&x, &y))
+                    }
+                    (ConstantScalar::F32(x), ConstantScalar::F32(y)) => {
+                        ConstantScalar::Bool(PartialEq::$lower(&x, &y))
+                    }
+                    (ConstantScalar::Bool(x), ConstantScalar::Bool(y)) => {
+                        ConstantScalar::Bool(PartialEq::$lower(&x, &y))
+                    }
+                    _ => unreachable!(),
+                };
+                Self::insert_scalar(memory, r, v);
+                Ok(())
+            }
+        }
+    };
+}
+
 impl_get_type!(u32, U32, get_u32);
 impl_get_type!(i32, I32, get_i32);
 impl_get_type!(f32, F32, get_f32);
@@ -310,3 +476,9 @@ impl_binary_binary_op!(op_bitor, bitor, BitOr);
 impl_binary_binary_op!(op_bitxor, bitxor, BitXor);
 impl_binary_shift_op!(op_shl, shl, Shl);
 impl_binary_shift_op!(op_shr, shr, Shr);
+impl_binary_eq_op!(op_eq, eq, Eq);
+impl_binary_eq_op!(op_ne, ne, Ne);
+impl_binary_ord_op!(op_lt, lt, Lt);
+impl_binary_ord_op!(op_le, le, Le);
+impl_binary_ord_op!(op_gt, gt, Gt);
+impl_binary_ord_op!(op_ge, ge, Ge);
