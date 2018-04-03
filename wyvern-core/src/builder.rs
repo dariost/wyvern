@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use program::{Op, Program, Token, TokenId, TokenType};
+use program::{LabelId, Op, Program, Token, TokenId, TokenType};
 use rand::{thread_rng, Rng};
 use std::cmp::{Eq, PartialEq};
 use std::sync::mpsc::{self, Receiver, SyncSender};
@@ -41,6 +41,7 @@ pub(crate) enum WorkerMessage {
     AddOperation(Op),
     MarkInput(TokenId, String),
     MarkOutput(TokenId, String),
+    NextLabel(SyncSender<LabelId>),
 }
 
 impl<'a> ProgramBuilder {
@@ -72,6 +73,93 @@ impl<'a> ProgramBuilder {
         result
     }
 
+    pub fn if_then<T: Fn(&ProgramBuilder) -> Constant<'a, bool>, U: Fn(&ProgramBuilder) -> ()>(
+        &self,
+        cond: T,
+        body: U,
+    ) {
+        self.send_message(WorkerMessage::PushBlock);
+        let condition = cond(self);
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::PopBlock(tx));
+        let cond = rx.recv().unwrap();
+        self.send_message(WorkerMessage::PushBlock);
+        body(self);
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::PopBlock(tx));
+        let body = rx.recv().unwrap();
+        self.add_operation(Op::If(
+            cond,
+            condition.info.token.id,
+            self.next_label(),
+            body,
+            self.next_label(),
+        ));
+    }
+
+    pub fn if_then_else<
+        T: Fn(&ProgramBuilder) -> Constant<'a, bool>,
+        U: Fn(&ProgramBuilder) -> (),
+    >(
+        &self,
+        cond: T,
+        body_if: U,
+        body_else: U,
+    ) {
+        self.send_message(WorkerMessage::PushBlock);
+        let condition = cond(self);
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::PopBlock(tx));
+        let cond = rx.recv().unwrap();
+        self.send_message(WorkerMessage::PushBlock);
+        body_if(self);
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::PopBlock(tx));
+        let body_if = rx.recv().unwrap();
+        self.send_message(WorkerMessage::PushBlock);
+        body_else(self);
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::PopBlock(tx));
+        let body_else = rx.recv().unwrap();
+        self.add_operation(Op::IfElse(
+            cond,
+            condition.info.token.id,
+            self.next_label(),
+            body_if,
+            self.next_label(),
+            body_else,
+            self.next_label(),
+        ));
+    }
+
+    pub fn while_loop<
+        T: Fn(&ProgramBuilder) -> Constant<'a, bool>,
+        U: Fn(&ProgramBuilder) -> (),
+    >(
+        &self,
+        cond: T,
+        body: U,
+    ) {
+        self.send_message(WorkerMessage::PushBlock);
+        let condition = cond(self);
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::PopBlock(tx));
+        let cond = rx.recv().unwrap();
+        self.send_message(WorkerMessage::PushBlock);
+        body(self);
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::PopBlock(tx));
+        let body = rx.recv().unwrap();
+        self.add_operation(Op::While(
+            self.next_label(),
+            cond,
+            condition.info.token.id,
+            self.next_label(),
+            body,
+            self.next_label(),
+        ));
+    }
+
     pub fn num_workers(&'a self) -> Constant<'a, u32> {
         let result = Constant::generate(self);
         self.add_operation(Op::NumWorkers(result.info.token.id));
@@ -97,6 +185,12 @@ impl<'a> ProgramBuilder {
     pub(crate) fn send_message(&self, msg: WorkerMessage) {
         self.worker_queue.send(msg).unwrap();
     }
+
+    pub(crate) fn next_label(&self) -> LabelId {
+        let (tx, rx) = mpsc::sync_channel(0);
+        self.send_message(WorkerMessage::NextLabel(tx));
+        rx.recv().unwrap()
+    }
 }
 
 impl Default for ProgramBuilder {
@@ -115,6 +209,8 @@ impl Eq for ProgramBuilder {}
 
 fn worker(queue: Receiver<WorkerMessage>) -> Program {
     let queue = queue;
+    let mut label_id = LabelId::default();
+    label_id.next();
     let mut token_id = TokenId::default();
     let mut prog = Program::default();
     let mut block_stack: Vec<Vec<Op>> = Vec::new();
@@ -150,6 +246,9 @@ fn worker(queue: Receiver<WorkerMessage>) -> Program {
             }
             WorkerMessage::MarkOutput(id, name) => {
                 prog.output.insert(name, id);
+            }
+            WorkerMessage::NextLabel(tx) => {
+                tx.send(label_id.next()).unwrap();
             }
         }
     }

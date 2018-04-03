@@ -18,7 +18,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Su
 use std::sync::Arc;
 use wcore::executor::{Executable, Resource, IO};
 use wcore::program::DataType;
-use wcore::program::{ConstantScalar, ConstantVector, Op, Program, TokenId, TokenValue};
+use wcore::program::{ConstantScalar, ConstantVector, LabelId, Op, Program, TokenId, TokenValue};
 
 #[derive(Debug)]
 pub struct CpuExecutable {
@@ -59,7 +59,8 @@ impl CpuExecutable {
             memory.insert(*id, value.get_data());
         }
         let operations = self.program.operation.clone();
-        self.run_block(&operations, &mut memory)?;
+        let mut last_labels = (LabelId::default(), LabelId::default());
+        self.run_block(&operations, &mut memory, &mut last_labels)?;
         for (name, id) in &self.program.output {
             let value = memory
                 .remove(id)
@@ -76,10 +77,55 @@ impl CpuExecutable {
         &mut self,
         block: &[Op],
         memory: &mut HashMap<TokenId, TokenValue>,
+        labels: &mut (LabelId, LabelId),
     ) -> Result<(), String> {
         for op in block {
             match *op {
-                Op::Block(ref block) => self.run_block(block, memory)?,
+                Op::Phi(r, a0, l0, a1, l1) => {
+                    let v;
+                    if labels.0 == l0 {
+                        v = Self::get_scalar(memory, a0)?;
+                    } else if labels.0 == l1 {
+                        v = Self::get_scalar(memory, a1)?;
+                    } else {
+                        unreachable!();
+                    }
+                    Self::insert_scalar(memory, r, v);
+                }
+                Op::If(ref cond_op, cond, l0, ref a0, lend) => {
+                    self.run_block(cond_op, memory, labels)?;
+                    let cond = Self::get_bool(memory, cond)?;
+                    if cond {
+                        Self::update_labels(labels, l0);
+                        self.run_block(a0, memory, labels)?;
+                    }
+                    Self::update_labels(labels, lend);
+                }
+                Op::IfElse(ref cond_op, cond, l0, ref a0, l1, ref a1, lend) => {
+                    self.run_block(cond_op, memory, labels)?;
+                    let cond = Self::get_bool(memory, cond)?;
+                    if cond {
+                        Self::update_labels(labels, l0);
+                        self.run_block(a0, memory, labels)?;
+                    } else {
+                        Self::update_labels(labels, l1);
+                        self.run_block(a1, memory, labels)?;
+                    }
+                    Self::update_labels(labels, lend);
+                }
+                Op::While(lcond, ref cond_op, cond, l0, ref a0, lend) => {
+                    Self::update_labels(labels, lcond);
+                    loop {
+                        self.run_block(cond_op, memory, labels)?;
+                        let condition = Self::get_bool(memory, cond)?;
+                        if !condition {
+                            break;
+                        }
+                        Self::update_labels(labels, l0);
+                        self.run_block(a0, memory, labels)?;
+                    }
+                    Self::update_labels(labels, lend);
+                }
                 Op::MemoryBarrier => continue,
                 Op::ControlBarrier => continue,
                 Op::WorkerId(r) => Self::insert_scalar(memory, r, ConstantScalar::U32(0)),
@@ -129,7 +175,7 @@ impl CpuExecutable {
                 Op::BitAnd(r, a, b) => Self::op_bitand(memory, r, a, b)?,
                 Op::BitOr(r, a, b) => Self::op_bitor(memory, r, a, b)?,
                 Op::BitXor(r, a, b) => Self::op_bitxor(memory, r, a, b)?,
-                Op::ArrayNew(r, s, t) => {
+                Op::ArrayNew(r, s, t, _) => {
                     let s = Self::get_u32(memory, s)?;
                     Self::new_vector(memory, r, s, t);
                 }
@@ -151,6 +197,11 @@ impl CpuExecutable {
             }
         }
         Ok(())
+    }
+
+    fn update_labels(labels: &mut (LabelId, LabelId), new_label: LabelId) {
+        (labels.0).0 = (labels.1).0;
+        (labels.1).0 = new_label.0;
     }
 
     fn get_scalar(
@@ -465,6 +516,7 @@ macro_rules! impl_binary_eq_op {
 impl_get_type!(u32, U32, get_u32);
 impl_get_type!(i32, I32, get_i32);
 impl_get_type!(f32, F32, get_f32);
+impl_get_type!(bool, Bool, get_bool);
 
 impl_binary_op!(op_add, add, Add);
 impl_binary_op!(op_sub, sub, Sub);

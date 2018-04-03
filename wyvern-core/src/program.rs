@@ -63,7 +63,10 @@ pub enum ConstantVector {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
-pub struct TokenId(u32);
+pub struct TokenId(pub u32);
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
+pub struct LabelId(pub u32);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Token {
@@ -73,14 +76,25 @@ pub struct Token {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Op {
-    Block(Vec<Op>),
+    Phi(TokenId, TokenId, LabelId, TokenId, LabelId),
+    If(Vec<Op>, TokenId, LabelId, Vec<Op>, LabelId),
+    IfElse(
+        Vec<Op>,
+        TokenId,
+        LabelId,
+        Vec<Op>,
+        LabelId,
+        Vec<Op>,
+        LabelId,
+    ),
+    While(LabelId, Vec<Op>, TokenId, LabelId, Vec<Op>, LabelId),
     MemoryBarrier,
     ControlBarrier,
     WorkerId(TokenId),
     NumWorkers(TokenId),
     Load(TokenId, TokenId),
     Store(TokenId, TokenId),
-    ArrayNew(TokenId, TokenId, DataType),
+    ArrayNew(TokenId, TokenId, DataType, u32),
     ArrayLen(TokenId, TokenId),
     ArrayLoad(TokenId, TokenId, TokenId),
     ArrayStore(TokenId, TokenId, TokenId),
@@ -113,6 +127,14 @@ pub enum Op {
 
 impl TokenId {
     pub(crate) fn next(&mut self) -> TokenId {
+        let prev = *self;
+        self.0 += 1;
+        prev
+    }
+}
+
+impl LabelId {
+    pub(crate) fn next(&mut self) -> LabelId {
         let prev = *self;
         self.0 += 1;
         prev

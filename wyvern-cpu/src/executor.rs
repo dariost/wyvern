@@ -42,7 +42,7 @@ impl Executor for CpuExecutor {
 
     fn new_resource(&self) -> Result<Arc<CpuResource>, String> {
         Ok(Arc::new(CpuResource {
-            id: thread_rng().next_u64(),
+            id: thread_rng().gen(),
             data: Mutex::new(TokenValue::Null),
         }))
     }

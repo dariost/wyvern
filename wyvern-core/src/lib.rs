@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate num;
+extern crate num_traits;
 extern crate rand;
 
 pub mod builder;

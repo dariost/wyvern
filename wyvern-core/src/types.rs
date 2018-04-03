@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use builder::{ProgramBuilder, ProgramObjectInfo, WorkerMessage};
-use num::Integer;
+use num_traits::{PrimInt, Unsigned};
 use program::TokenId;
 use program::{ConstantScalar, DataType, Op, TokenType};
 use std::cmp::{PartialEq, PartialOrd};
@@ -140,7 +140,7 @@ macro_rules! impl_binary_op_immediate {
 
 macro_rules! impl_shift_op {
     ($lower:ident, $upper:ident) => {
-        impl<'a, U: Type + Integer, T: Type + $upper<U>> $upper<Constant<'a, U>>
+        impl<'a, U: Type + PrimInt, T: Type + $upper<U>> $upper<Constant<'a, U>>
             for Constant<'a, T>
         {
             type Output = Constant<'a, T>;
@@ -161,7 +161,7 @@ macro_rules! impl_shift_op {
 
 macro_rules! impl_shift_op_immediate {
     ($lower:ident, $upper:ident) => {
-        impl<'a, U: Type + Integer, T: Type + $upper<U>> $upper<U> for Constant<'a, T> {
+        impl<'a, U: Type + PrimInt, T: Type + $upper<U>> $upper<U> for Constant<'a, T> {
             type Output = Constant<'a, T>;
 
             fn $lower(self, rhs: U) -> Self::Output {
@@ -283,8 +283,9 @@ impl<'a, T: Type> Variable<'a, T> {
 
 #[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
 impl<'a, T: Type> Array<'a, T> {
-    pub fn new<U: Type + Integer>(
+    pub fn new<U: Type + Unsigned>(
         size: Constant<'a, U>,
+        max_size: u32,
         builder: &'a ProgramBuilder,
     ) -> Array<'a, T> {
         assert_eq!(builder, size.info.builder);
@@ -296,6 +297,7 @@ impl<'a, T: Type> Array<'a, T> {
             result.info.token.id,
             size.info.token.id,
             T::data_type(),
+            max_size,
         ));
         result
     }
@@ -327,7 +329,7 @@ impl<'a, T: Type> Array<'a, T> {
         result
     }
 
-    pub fn at<U: Type + Integer>(&'a self, index: Constant<'a, U>) -> Variable<'a, T> {
+    pub fn at<U: Type + Unsigned>(&'a self, index: Constant<'a, U>) -> Variable<'a, T> {
         assert_eq!(self.info.builder, index.info.builder);
         Variable {
             phantom: PhantomData,
