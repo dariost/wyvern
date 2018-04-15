@@ -1,0 +1,10 @@
+[package]
+name = "wyvern-vulkan"
+version = "0.1.0"
+authors = ["Dario Ostuni <dario.ostuni@gmail.com>"]
+
+[dependencies]
+wyvern-core = { path = "../wyvern-core" }
+rspirv = { git = "https://github.com/dariost/rspirv.git", rev = "98d296b" }
+spirv_headers = { git = "https://github.com/dariost/rspirv.git", rev = "98d296b" }
+byteorder = "1.2"

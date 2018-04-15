@@ -286,6 +286,7 @@ impl<'a, T: Type> Array<'a, T> {
     pub fn new<U: Type + Unsigned>(
         size: Constant<'a, U>,
         max_size: u32,
+        shared: bool,
         builder: &'a ProgramBuilder,
     ) -> Array<'a, T> {
         assert_eq!(builder, size.info.builder);
@@ -298,6 +299,7 @@ impl<'a, T: Type> Array<'a, T> {
             size.info.token.id,
             T::data_type(),
             max_size,
+            shared,
         ));
         result
     }

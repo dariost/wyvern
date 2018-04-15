@@ -94,7 +94,7 @@ pub enum Op {
     NumWorkers(TokenId),
     Load(TokenId, TokenId),
     Store(TokenId, TokenId),
-    ArrayNew(TokenId, TokenId, DataType, u32),
+    ArrayNew(TokenId, TokenId, DataType, u32, bool),
     ArrayLen(TokenId, TokenId),
     ArrayLoad(TokenId, TokenId, TokenId),
     ArrayStore(TokenId, TokenId, TokenId),

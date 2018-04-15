@@ -175,7 +175,7 @@ impl CpuExecutable {
                 Op::BitAnd(r, a, b) => Self::op_bitand(memory, r, a, b)?,
                 Op::BitOr(r, a, b) => Self::op_bitor(memory, r, a, b)?,
                 Op::BitXor(r, a, b) => Self::op_bitxor(memory, r, a, b)?,
-                Op::ArrayNew(r, s, t, _) => {
+                Op::ArrayNew(r, s, t, _, _) => {
                     let s = Self::get_u32(memory, s)?;
                     Self::new_vector(memory, r, s, t);
                 }

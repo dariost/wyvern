@@ -63,7 +63,7 @@ impl<'a> ProgramBuilder {
         self.add_operation(Op::MemoryBarrier);
     }
 
-    pub fn control_barrier(&self) {
+    pub fn barrier(&self) {
         self.add_operation(Op::ControlBarrier);
     }
 
