@@ -100,11 +100,12 @@ impl<'a> ProgramBuilder {
     pub fn if_then_else<
         T: Fn(&ProgramBuilder) -> Constant<'a, bool>,
         U: Fn(&ProgramBuilder) -> (),
+        V: Fn(&ProgramBuilder) -> (),
     >(
         &self,
         cond: T,
         body_if: U,
-        body_else: U,
+        body_else: V,
     ) {
         self.send_message(WorkerMessage::PushBlock);
         let condition = cond(self);

@@ -14,8 +14,9 @@
 
 use rspirv::binary::Assemble;
 use rspirv::mr::{Builder, Operand};
+use spirv_headers::LoopControl;
 use spirv_headers::{AddressingModel, Capability, ExecutionMode, ExecutionModel, MemoryModel};
-use spirv_headers::{BuiltIn, Decoration, FunctionControl, StorageClass, Word};
+use spirv_headers::{BuiltIn, Decoration, FunctionControl, SelectionControl, StorageClass, Word};
 use std::collections::HashMap;
 use wcore::executor::IO;
 use wcore::program::{ConstantScalar, DataType, LabelId, Op, Program, TokenId, TokenType};
@@ -27,6 +28,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
     const LOCAL_SIZE: u32 = 1;
     let mut b = Builder::new();
     b.capability(Capability::Shader);
+    #[allow(unused_variables)]
     let gl_std = b.ext_inst_import("GLSL.std.450");
     b.memory_model(AddressingModel::Logical, MemoryModel::GLSL450);
     let main_function = b.id();
@@ -145,6 +147,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
         worker_id: global_invocation_id_word,
         num_workers: num_workers_word,
     };
+    #[cfg_attr(feature = "cargo-clippy", allow(too_many_arguments, many_single_char_names))]
     fn compile(
         operations: &[Op],
         b: &mut Builder,
@@ -549,7 +552,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
                     };
                 }
                 Op::Eq(r, a, d) => {
-                    match get_const_datatype(r) {
+                    match get_const_datatype(a) {
                         DataType::U32 | DataType::I32 => {
                             b.iequal(
                                 ty.type_bool,
@@ -577,7 +580,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
                     };
                 }
                 Op::Ne(r, a, d) => {
-                    match get_const_datatype(r) {
+                    match get_const_datatype(a) {
                         DataType::U32 | DataType::I32 => {
                             b.inot_equal(
                                 ty.type_bool,
@@ -605,7 +608,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
                     };
                 }
                 Op::Lt(r, a, d) => {
-                    match get_const_datatype(r) {
+                    match get_const_datatype(a) {
                         DataType::U32 => {
                             b.uless_than(
                                 ty.type_bool,
@@ -634,7 +637,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
                     };
                 }
                 Op::Le(r, a, d) => {
-                    match get_const_datatype(r) {
+                    match get_const_datatype(a) {
                         DataType::U32 => {
                             b.uless_than_equal(
                                 ty.type_bool,
@@ -663,7 +666,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
                     };
                 }
                 Op::Gt(r, a, d) => {
-                    match get_const_datatype(r) {
+                    match get_const_datatype(a) {
                         DataType::U32 => {
                             b.ugreater_than(
                                 ty.type_bool,
@@ -692,7 +695,7 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
                     };
                 }
                 Op::Ge(r, a, d) => {
-                    match get_const_datatype(r) {
+                    match get_const_datatype(a) {
                         DataType::U32 => {
                             b.ugreater_than_equal(
                                 ty.type_bool,
@@ -730,9 +733,68 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
                         ],
                     ).map_err(|x| format!("{:?}", x))?;
                 }
-                Op::If(ref cond_op, cond, l0, ref a0, lend) => unimplemented!(),
-                Op::IfElse(ref cond_op, cond, l0, ref a0, l1, ref a1, lend) => unimplemented!(),
-                Op::While(lcond, ref cond_op, cond, l0, ref a0, lend) => unimplemented!(),
+                Op::If(ref cond_op, cond, l0, ref a0, lend) => {
+                    let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
+                    let lend = *label_map.entry(lend).or_insert_with(|| b.id());
+                    compile(cond_op, b, program, ty, cn, w, token_map, label_map)?;
+                    b.selection_merge(lend, SelectionControl::NONE)
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.branch_conditional(token_map[&cond], l0, lend, &[])
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(l0))
+                        .map_err(|x| format!("{:?}", x))?;
+                    compile(a0, b, program, ty, cn, w, token_map, label_map)?;
+                    b.branch(lend).map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(lend))
+                        .map_err(|x| format!("{:?}", x))?;
+                }
+                Op::IfElse(ref cond_op, cond, l0, ref a0, l1, ref a1, lend) => {
+                    let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
+                    let l1 = *label_map.entry(l1).or_insert_with(|| b.id());
+                    let lend = *label_map.entry(lend).or_insert_with(|| b.id());
+                    compile(cond_op, b, program, ty, cn, w, token_map, label_map)?;
+                    b.selection_merge(lend, SelectionControl::NONE)
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.branch_conditional(token_map[&cond], l0, l1, &[])
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(l0))
+                        .map_err(|x| format!("{:?}", x))?;
+                    compile(a0, b, program, ty, cn, w, token_map, label_map)?;
+                    b.branch(lend).map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(l1))
+                        .map_err(|x| format!("{:?}", x))?;
+                    compile(a1, b, program, ty, cn, w, token_map, label_map)?;
+                    b.branch(lend).map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(lend))
+                        .map_err(|x| format!("{:?}", x))?;
+                }
+                Op::While(lcond, ref cond_op, cond, l0, ref a0, lend) => {
+                    let lbefore = b.id();
+                    let lcond = *label_map.entry(lcond).or_insert_with(|| b.id());
+                    let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
+                    let lcontinue = b.id();
+                    let lend = *label_map.entry(lend).or_insert_with(|| b.id());
+                    b.branch(lbefore).map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(lbefore))
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.loop_merge(lend, lcontinue, LoopControl::NONE, &[])
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.branch(lcond).map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(lcond))
+                        .map_err(|x| format!("{:?}", x))?;
+                    compile(cond_op, b, program, ty, cn, w, token_map, label_map)?;
+                    b.branch_conditional(token_map[&cond], l0, lend, &[])
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(l0))
+                        .map_err(|x| format!("{:?}", x))?;
+                    compile(a0, b, program, ty, cn, w, token_map, label_map)?;
+                    b.branch(lcontinue).map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(lcontinue))
+                        .map_err(|x| format!("{:?}", x))?;
+                    b.branch(lbefore).map_err(|x| format!("{:?}", x))?;
+                    b.begin_basic_block(Some(lend))
+                        .map_err(|x| format!("{:?}", x))?;
+                }
                 Op::Load(r, a) => unimplemented!(),
                 Op::Store(r, a) => unimplemented!(),
                 Op::ArrayNew(r, s, t, ms, shared) => unimplemented!(),
@@ -753,7 +815,6 @@ pub fn generate(program: &Program) -> Result<(Vec<u32>, Vec<Binding>), String> {
         &mut token_map,
         &mut label_map,
     )?;
-    // END
     b.ret().map_err(|x| format!("{:?}", x))?;
     b.end_function().map_err(|x| format!("{:?}", x))?;
     Ok((b.module().assemble(), Vec::new()))
