@@ -18,8 +18,16 @@ use std::collections::HashMap;
 pub struct Program {
     pub symbol: HashMap<TokenId, TokenType>,
     pub operation: Vec<Op>,
+    pub storage: HashMap<TokenId, StorageType>,
     pub input: HashMap<String, TokenId>,
     pub output: HashMap<String, TokenId>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum StorageType {
+    Variable(DataType),
+    SharedArray(DataType, u32),
+    PrivateArray(DataType, u32),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

@@ -206,7 +206,7 @@ impl<'a, T: Type> Constant<'a, T> {
     pub(crate) fn generate(builder: &'a ProgramBuilder) -> Constant<'a, T> {
         Constant {
             phantom: PhantomData,
-            info: builder.gen_token(TokenType::Constant(T::data_type())),
+            info: builder.gen_token(TokenType::Constant(T::data_type()), None),
         }
     }
 }
@@ -215,7 +215,7 @@ impl<'a, T: Type> Variable<'a, T> {
     pub fn new(builder: &'a ProgramBuilder) -> Variable<'a, T> {
         Variable {
             phantom: PhantomData,
-            info: builder.gen_token(TokenType::Variable(T::data_type())),
+            info: builder.gen_token(TokenType::Variable(T::data_type()), None),
             ty: VariableType::Variable,
         }
     }
@@ -292,7 +292,7 @@ impl<'a, T: Type> Array<'a, T> {
         assert_eq!(builder, size.info.builder);
         let result = Array {
             phantom: PhantomData,
-            info: builder.gen_token(TokenType::Array(T::data_type())),
+            info: builder.gen_token(TokenType::Array(T::data_type()), Some((max_size, shared))),
         };
         result.info.builder.add_operation(Op::ArrayNew(
             result.info.token.id,
@@ -337,7 +337,7 @@ impl<'a, T: Type> Array<'a, T> {
             phantom: PhantomData,
             info: self.info
                 .builder
-                .gen_token(TokenType::ArrayPointer(T::data_type())),
+                .gen_token(TokenType::ArrayPointer(T::data_type()), None),
             ty: VariableType::ArrayIndex(self.info.token.id, index.info.token.id),
         }
     }

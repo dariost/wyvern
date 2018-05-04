@@ -8,7 +8,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use std::fs::write;
 use wcore::builder::ProgramBuilder;
 use wcore::types::Constant;
-use wvulkan::generator::generate;
+use wvulkan::generator::{generate, Version};
 
 fn u32tou8(v: &[u32]) -> Vec<u8> {
     let mut result = Vec::new();
@@ -26,7 +26,7 @@ fn main() {
     let builder = ProgramBuilder::new();
     program(&builder);
     let p = builder.finalize().unwrap();
-    write("foo.spv", u32tou8(&generate(&p).unwrap().0)).unwrap();
+    write("foo.spv", u32tou8(&generate(&p, Version::Vulkan10).unwrap().0)).unwrap();
 }
 
 fn program(builder: &ProgramBuilder) {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use program::{LabelId, Op, Program, Token, TokenId, TokenType};
+use program::{LabelId, Op, Program, StorageType, Token, TokenId, TokenType};
 use rand::{thread_rng, Rng};
 use std::cmp::{Eq, PartialEq};
 use std::sync::mpsc::{self, Receiver, SyncSender};
@@ -35,7 +35,7 @@ pub(crate) struct ProgramObjectInfo<'a> {
 #[derive(Debug)]
 pub(crate) enum WorkerMessage {
     Finalize,
-    GenerateToken(SyncSender<TokenId>, TokenType),
+    GenerateToken(SyncSender<TokenId>, TokenType, Option<(u32, bool)>),
     PushBlock,
     PopBlock(SyncSender<Vec<Op>>),
     AddOperation(Op),
@@ -167,9 +167,13 @@ impl<'a> ProgramBuilder {
         result
     }
 
-    pub(crate) fn gen_token(&'a self, ty: TokenType) -> ProgramObjectInfo<'a> {
+    pub(crate) fn gen_token(
+        &'a self,
+        ty: TokenType,
+        a: Option<(u32, bool)>,
+    ) -> ProgramObjectInfo<'a> {
         let (tx, rx) = mpsc::sync_channel(0);
-        self.send_message(WorkerMessage::GenerateToken(tx, ty));
+        self.send_message(WorkerMessage::GenerateToken(tx, ty, a));
         ProgramObjectInfo {
             token: Token {
                 id: rx.recv().unwrap(),
@@ -224,9 +228,22 @@ fn worker(queue: Receiver<WorkerMessage>) -> Program {
                 prog.operation = block_stack_top;
                 break prog;
             }
-            WorkerMessage::GenerateToken(tx, ty) => {
+            WorkerMessage::GenerateToken(tx, ty, a) => {
                 let id = token_id.next();
                 let insert_result = prog.symbol.insert(id, ty);
+                assert!(insert_result.is_none());
+                let insert_result = match (ty, a) {
+                    (TokenType::Variable(dty), None) => {
+                        prog.storage.insert(id, StorageType::Variable(dty))
+                    }
+                    (TokenType::Array(dty), Some((ms, true))) => {
+                        prog.storage.insert(id, StorageType::SharedArray(dty, ms))
+                    }
+                    (TokenType::Array(dty), Some((ms, false))) => {
+                        prog.storage.insert(id, StorageType::PrivateArray(dty, ms))
+                    }
+                    _ => None,
+                };
                 assert!(insert_result.is_none());
                 tx.send(id).unwrap();
             }
@@ -243,9 +260,15 @@ fn worker(queue: Receiver<WorkerMessage>) -> Program {
                 block_stack_top.push(op);
             }
             WorkerMessage::MarkInput(id, name) => {
+                if prog.output.values().any(|&x| x == id) {
+                    panic!("Can't mark a variable as both input and output!");
+                }
                 prog.input.insert(name, id);
             }
             WorkerMessage::MarkOutput(id, name) => {
+                if prog.input.values().any(|&x| x == id) {
+                    panic!("Can't mark a variable as both input and output!");
+                }
                 prog.output.insert(name, id);
             }
             WorkerMessage::NextLabel(tx) => {
