@@ -17,12 +17,17 @@ use rspirv::mr::{Builder, Operand};
 use spirv_headers::LoopControl;
 use spirv_headers::{AddressingModel, Capability, ExecutionMode, ExecutionModel, MemoryModel};
 use spirv_headers::{BuiltIn, Decoration, FunctionControl, SelectionControl, StorageClass, Word};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use wcore::executor::IO;
 use wcore::program::StorageType;
 use wcore::program::{ConstantScalar, DataType, LabelId, Op, Program, TokenId, TokenType};
 
-type Binding = (usize, Option<(IO, String)>);
+pub enum BindType {
+    Public(IO, String),
+    Private(u32),
+}
+
+type Binding = (u32, BindType);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Version {
@@ -33,12 +38,21 @@ pub enum Version {
 #[allow(non_snake_case)]
 pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Binding>), String> {
     const LOCAL_SIZE: u32 = 1;
+    let mut next_binding = 0;
+    let mut bindings = Vec::new();
     let mut b = Builder::new();
     match version {
         Version::Vulkan10 => b.set_version(1, 0),
         Version::Vulkan11 => b.set_version(1, 3),
     };
     b.capability(Capability::Shader);
+    match version {
+        Version::Vulkan10 => {}
+        Version::Vulkan11 => {
+            b.extension("SPV_KHR_storage_buffer_storage_class");
+            b.extension("SPV_KHR_variable_pointers");
+        }
+    };
     #[allow(unused_variables)]
     let gl_std = b.ext_inst_import("GLSL.std.450");
     b.memory_model(AddressingModel::Logical, MemoryModel::GLSL450);
@@ -62,6 +76,10 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
         type_funu32: Word,
         type_funi32: Word,
         type_funf32: Word,
+        type_stbool: Word,
+        type_stu32: Word,
+        type_sti32: Word,
+        type_stf32: Word,
         #[allow(dead_code)]
         type_v3u32: Word,
         type_inu32: Word,
@@ -69,6 +87,7 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
     }
     struct Constants {
         CONSTANT_0: Word,
+        CONSTANT_1: Word,
         SCOPE_DEVICE: Word,
         SCOPE_WORKGROUP: Word,
         SEMANTIC_ACQUIRERELEASE: Word,
@@ -83,6 +102,14 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
     let type_funu32 = b.type_pointer(None, StorageClass::Function, type_u32);
     let type_funi32 = b.type_pointer(None, StorageClass::Function, type_i32);
     let type_funf32 = b.type_pointer(None, StorageClass::Function, type_f32);
+    let stclass = match version {
+        Version::Vulkan10 => StorageClass::Uniform,
+        Version::Vulkan11 => StorageClass::StorageBuffer,
+    };
+    let type_stbool = b.type_pointer(None, stclass, type_bool);
+    let type_stu32 = b.type_pointer(None, stclass, type_u32);
+    let type_sti32 = b.type_pointer(None, stclass, type_i32);
+    let type_stf32 = b.type_pointer(None, stclass, type_f32);
     let type_v3u32 = b.type_vector(type_u32, 3);
     let type_inu32 = b.type_pointer(None, StorageClass::Input, type_u32);
     let type_inv3u32 = b.type_pointer(None, StorageClass::Input, type_v3u32);
@@ -96,6 +123,10 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
         type_funu32,
         type_funi32,
         type_funf32,
+        type_stbool,
+        type_stu32,
+        type_sti32,
+        type_stf32,
         type_v3u32,
         type_inu32,
         type_inv3u32,
@@ -113,12 +144,14 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
         None,
     );
     let CONSTANT_0 = b.constant_u32(ty.type_u32, 0);
+    let CONSTANT_1 = b.constant_u32(ty.type_u32, 1);
     let SCOPE_DEVICE = b.constant_u32(ty.type_u32, 1);
     let SCOPE_WORKGROUP = b.constant_u32(ty.type_u32, 2);
     let SEMANTIC_ACQUIRERELEASE = b.constant_u32(ty.type_u32, 0x8 | 0x40);
     let LOCAL_SIZE_WORD = b.constant_u32(ty.type_u32, LOCAL_SIZE);
     let cn = Constants {
         CONSTANT_0,
+        CONSTANT_1,
         SCOPE_DEVICE,
         SCOPE_WORKGROUP,
         SEMANTIC_ACQUIRERELEASE,
@@ -135,63 +168,157 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
         Decoration::BuiltIn,
         &[Operand::BuiltIn(BuiltIn::NumWorkgroups)],
     );
+    let mut token_map = HashMap::new();
+    let mut label_map = HashMap::new();
+    let mut in_set = HashMap::new();
+    let mut out_set = HashMap::new();
+    for symbol in program.symbol.keys() {
+        token_map.insert(*symbol, b.id());
+    }
+    for k in program.input.keys() {
+        in_set.insert(program.input[k], k.clone());
+    }
+    for k in program.output.keys() {
+        out_set.insert(program.output[k], k.clone());
+    }
+    for t in program.storage.keys() {
+        let input = in_set.contains_key(t);
+        let output = out_set.contains_key(t);
+        match (program.storage[&t], input || output) {
+            (StorageType::Variable(tty), true) => {
+                let binding_number = next_binding;
+                next_binding += 1;
+                let struct_type = b.type_struct(&[match tty {
+                    DataType::Bool => ty.type_bool,
+                    DataType::U32 => ty.type_u32,
+                    DataType::I32 => ty.type_i32,
+                    DataType::F32 => ty.type_f32,
+                }]);
+                let struct_type_pointer = b.type_pointer(
+                    None,
+                    match version {
+                        Version::Vulkan10 => StorageClass::Uniform,
+                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                    },
+                    struct_type,
+                );
+                let struct_instance = b.variable(
+                    struct_type_pointer,
+                    Some(token_map[&t]),
+                    match version {
+                        Version::Vulkan10 => StorageClass::Uniform,
+                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                    },
+                    None,
+                );
+                b.member_decorate(
+                    struct_type,
+                    0,
+                    Decoration::Offset,
+                    &[Operand::LiteralInt32(0)],
+                );
+                b.decorate(
+                    struct_type,
+                    match version {
+                        Version::Vulkan10 => Decoration::BufferBlock,
+                        Version::Vulkan11 => Decoration::Block,
+                    },
+                    &[],
+                );
+                b.decorate(
+                    struct_instance,
+                    Decoration::DescriptorSet,
+                    &[Operand::LiteralInt32(0)],
+                );
+                b.decorate(
+                    struct_instance,
+                    Decoration::Binding,
+                    &[Operand::LiteralInt32(binding_number)],
+                );
+                if input {
+                    bindings.push((
+                        binding_number,
+                        BindType::Public(IO::Input, in_set[t].clone()),
+                    ))
+                }
+                if output {
+                    bindings.push((
+                        binding_number,
+                        BindType::Public(IO::Output, out_set[t].clone()),
+                    ))
+                }
+            }
+            (StorageType::SharedArray(tty, ms), true) => unimplemented!(),
+            (StorageType::SharedArray(tty, ms), false) => unimplemented!(),
+            _ => {}
+        };
+    }
     let _main_function = b.begin_function(
         ty.type_void,
         Some(main_function),
         FunctionControl::empty(),
         type_main_function,
     ).map_err(|x| format!("{:?}", x))?;
-    let mut token_map = HashMap::new();
-    let mut label_map = HashMap::new();
-    let mut io_set = HashSet::new();
-    for symbol in program.symbol.keys() {
-        token_map.insert(*symbol, b.id());
-    }
-    for t in program.input.values() {
-        io_set.insert(*t);
-    }
-    for t in program.output.values() {
-        io_set.insert(*t);
-    }
     label_map.insert(
         LabelId(0),
         b.begin_basic_block(None).map_err(|x| format!("{:?}", x))?,
     );
     for t in program.storage.keys() {
-        if io_set.contains(&t) {
+        if in_set.contains_key(&t) || out_set.contains_key(&t) {
+            if let StorageType::Variable(tty) = program.storage[&t] {
+                let new_token = b.access_chain(
+                    match tty {
+                        DataType::Bool => ty.type_stbool,
+                        DataType::U32 => ty.type_stu32,
+                        DataType::I32 => ty.type_sti32,
+                        DataType::F32 => ty.type_stf32,
+                    },
+                    None,
+                    token_map[&t],
+                    &[cn.CONSTANT_0],
+                ).map_err(|x| format!("{:?}", x))?;
+                let result = token_map.insert(*t, new_token);
+                assert!(result.is_some());
+            }
             continue;
-        } else {
-            match program.storage[&t] {
-                StorageType::Variable(tty) => match tty {
-                    DataType::Bool => b.variable(
-                        ty.type_funbool,
-                        Some(token_map[&t]),
-                        StorageClass::Function,
-                        None,
-                    ),
-                    DataType::U32 => b.variable(
-                        ty.type_funu32,
-                        Some(token_map[&t]),
-                        StorageClass::Function,
-                        None,
-                    ),
-                    DataType::I32 => b.variable(
-                        ty.type_funi32,
-                        Some(token_map[&t]),
-                        StorageClass::Function,
-                        None,
-                    ),
-                    DataType::F32 => b.variable(
-                        ty.type_funf32,
-                        Some(token_map[&t]),
-                        StorageClass::Function,
-                        None,
-                    ),
-                },
-                StorageType::PrivateArray(_, _) => unimplemented!(),
-                StorageType::SharedArray(_, _) => unimplemented!(),
-            };
         }
+        match program.storage[&t] {
+            StorageType::Variable(tty) => {
+                b.variable(
+                    match tty {
+                        DataType::Bool => ty.type_funbool,
+                        DataType::U32 => ty.type_funu32,
+                        DataType::I32 => ty.type_funi32,
+                        DataType::F32 => ty.type_funf32,
+                    },
+                    Some(token_map[&t]),
+                    StorageClass::Function,
+                    None,
+                );
+            }
+            StorageType::PrivateArray(tty, ms) => {
+                let array_max_size = b.constant_u32(ty.type_u32, ms);
+                let array_type = b.type_array(
+                    match tty {
+                        DataType::Bool => ty.type_funbool,
+                        DataType::U32 => ty.type_funu32,
+                        DataType::I32 => ty.type_funi32,
+                        DataType::F32 => ty.type_funf32,
+                    },
+                    array_max_size,
+                );
+                let storage_type = b.type_struct(&[ty.type_u32, array_type]);
+                let storage_pointer_type =
+                    b.type_pointer(None, StorageClass::Function, storage_type);
+                b.variable(
+                    storage_pointer_type,
+                    Some(token_map[&t]),
+                    StorageClass::Function,
+                    None,
+                );
+            }
+            StorageType::SharedArray(_, _) => {}
+        };
     }
     let global_invocation_id_var =
         b.access_chain(ty.type_inu32, None, global_invocation_id, &[cn.CONSTANT_0])
@@ -874,8 +1001,25 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                     b.store(token_map[&r], token_map[&a], None, &[])
                         .map_err(|x| format!("{:?}", x))?;
                 }
-                Op::ArrayNew(r, s, t, ms, shared) => unimplemented!(),
-                Op::ArrayLen(r, v) => unimplemented!(),
+                Op::ArrayNew(r, s, _, _, _) => {
+                    let size_pointer =
+                        b.access_chain(ty.type_funu32, None, token_map[&r], &[cn.CONSTANT_0])
+                            .map_err(|x| format!("{:?}", x))?;
+                    b.store(size_pointer, token_map[&s], None, &[])
+                        .map_err(|x| format!("{:?}", x))?;
+                }
+                Op::ArrayLen(r, v) => {
+                    let size_pointer =
+                        b.access_chain(ty.type_funu32, None, token_map[&v], &[cn.CONSTANT_0])
+                            .map_err(|x| format!("{:?}", x))?;
+                    b.load(
+                        get_const_type(r),
+                        Some(token_map[&r]),
+                        size_pointer,
+                        None,
+                        &[],
+                    ).map_err(|x| format!("{:?}", x))?;
+                }
                 Op::ArrayStore(v, i, a) => unimplemented!(),
                 Op::ArrayLoad(r, v, i) => unimplemented!(),
             };
@@ -894,5 +1038,5 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
     )?;
     b.ret().map_err(|x| format!("{:?}", x))?;
     b.end_function().map_err(|x| format!("{:?}", x))?;
-    Ok((b.module().assemble(), Vec::new()))
+    Ok((b.module().assemble(), bindings))
 }

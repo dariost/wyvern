@@ -50,6 +50,7 @@ pub enum VariableType {
 pub struct Array<'a, T: Type> {
     phantom: PhantomData<T>,
     pub(crate) info: ProgramObjectInfo<'a>,
+    shared: bool,
 }
 
 macro_rules! impl_type {
@@ -293,6 +294,7 @@ impl<'a, T: Type> Array<'a, T> {
         let result = Array {
             phantom: PhantomData,
             info: builder.gen_token(TokenType::Array(T::data_type()), Some((max_size, shared))),
+            shared,
         };
         result.info.builder.add_operation(Op::ArrayNew(
             result.info.token.id,
@@ -305,6 +307,7 @@ impl<'a, T: Type> Array<'a, T> {
     }
 
     pub fn mark_as_input<S: ToString>(&self, name: S) -> Self {
+        assert!(self.shared);
         let name = name;
         self.info.builder.send_message(WorkerMessage::MarkInput(
             self.info.token.id,
@@ -314,6 +317,7 @@ impl<'a, T: Type> Array<'a, T> {
     }
 
     pub fn mark_as_output<S: ToString>(&self, name: S) -> Self {
+        assert!(self.shared);
         let name = name;
         self.info.builder.send_message(WorkerMessage::MarkOutput(
             self.info.token.id,

@@ -7,7 +7,7 @@ extern crate wyvern_vulkan as wvulkan;
 use byteorder::{ByteOrder, LittleEndian};
 use std::fs::write;
 use wcore::builder::ProgramBuilder;
-use wcore::types::Constant;
+use wcore::types::{Constant, Variable, Array};
 use wvulkan::generator::{generate, Version};
 
 fn u32tou8(v: &[u32]) -> Vec<u8> {
@@ -26,12 +26,12 @@ fn main() {
     let builder = ProgramBuilder::new();
     program(&builder);
     let p = builder.finalize().unwrap();
-    write("foo.spv", u32tou8(&generate(&p, Version::Vulkan10).unwrap().0)).unwrap();
+    write("foo.spv", u32tou8(&generate(&p, Version::Vulkan11).unwrap().0)).unwrap();
 }
 
 fn program(builder: &ProgramBuilder) {
-    let a = Constant::new(42.0, &builder);
-    let b = Constant::new(21.2, &builder);
+    let a: Constant<f32> = Variable::new(builder).mark_as_input("lol").load();
+    let b: Constant<f32> = Variable::new(builder).mark_as_output("lal").load();
     builder.while_loop(
         |_| (a / 2.0).lt(b),
         |_| {

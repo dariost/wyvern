@@ -260,15 +260,9 @@ fn worker(queue: Receiver<WorkerMessage>) -> Program {
                 block_stack_top.push(op);
             }
             WorkerMessage::MarkInput(id, name) => {
-                if prog.output.values().any(|&x| x == id) {
-                    panic!("Can't mark a variable as both input and output!");
-                }
                 prog.input.insert(name, id);
             }
             WorkerMessage::MarkOutput(id, name) => {
-                if prog.input.values().any(|&x| x == id) {
-                    panic!("Can't mark a variable as both input and output!");
-                }
                 prog.output.insert(name, id);
             }
             WorkerMessage::NextLabel(tx) => {
