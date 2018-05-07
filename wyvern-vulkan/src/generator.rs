@@ -1098,6 +1098,9 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                         .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayNew(r, s, _, _, _) => {
+                    if st_set.contains(&r) {
+                        continue;
+                    }
                     let size_pointer =
                         b.access_chain(ty.type_funu32, None, token_map[&r], &[cn.CONSTANT_0])
                             .map_err(|x| format!("{:?}", x))?;
@@ -1105,9 +1108,16 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                         .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayLen(r, v) => {
-                    let size_pointer =
-                        b.access_chain(ty.type_funu32, None, token_map[&v], &[cn.CONSTANT_0])
-                            .map_err(|x| format!("{:?}", x))?;
+                    let size_pointer = b.access_chain(
+                        if st_set.contains(&v) {
+                            ty.type_stu32
+                        } else {
+                            ty.type_funu32
+                        },
+                        None,
+                        token_map[&v],
+                        &[cn.CONSTANT_0],
+                    ).map_err(|x| format!("{:?}", x))?;
                     b.load(
                         get_const_type(r),
                         Some(token_map[&r]),
