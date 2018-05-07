@@ -17,7 +17,7 @@ use rspirv::mr::{Builder, Operand};
 use spirv_headers::LoopControl;
 use spirv_headers::{AddressingModel, Capability, ExecutionMode, ExecutionModel, MemoryModel};
 use spirv_headers::{BuiltIn, Decoration, FunctionControl, SelectionControl, StorageClass, Word};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use wcore::executor::IO;
 use wcore::program::StorageType;
 use wcore::program::{ConstantScalar, DataType, LabelId, Op, Program, TokenId, TokenType};
@@ -36,6 +36,7 @@ pub enum Version {
 }
 
 #[allow(non_snake_case)]
+#[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Binding>), String> {
     const LOCAL_SIZE: u32 = 1;
     let mut next_binding = 0;
@@ -181,6 +182,7 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
     for k in program.output.keys() {
         out_set.insert(program.output[k], k.clone());
     }
+    let mut st_set = HashSet::new();
     for t in program.storage.keys() {
         let input = in_set.contains_key(t);
         let output = out_set.contains_key(t);
@@ -248,8 +250,90 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                     ))
                 }
             }
-            (StorageType::SharedArray(tty, ms), true) => unimplemented!(),
-            (StorageType::SharedArray(tty, ms), false) => unimplemented!(),
+            (StorageType::SharedArray(tty, ms), io) => {
+                st_set.insert(*t);
+                let binding_number = next_binding;
+                next_binding += 1;
+                let array_type = b.type_runtime_array(match tty {
+                    DataType::Bool => return Err("bool I/O is not supported".into()),
+                    DataType::U32 => ty.type_u32,
+                    DataType::I32 => ty.type_i32,
+                    DataType::F32 => ty.type_f32,
+                });
+                let offset = match tty {
+                    DataType::Bool => return Err("bool I/O is not supported".into()),
+                    DataType::U32 | DataType::I32 | DataType::F32 => 4,
+                };
+                let struct_type = b.type_struct(&[ty.type_u32, array_type]);
+                let struct_type_pointer = b.type_pointer(
+                    None,
+                    match version {
+                        Version::Vulkan10 => StorageClass::Uniform,
+                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                    },
+                    struct_type,
+                );
+                let struct_instance = b.variable(
+                    struct_type_pointer,
+                    Some(token_map[&t]),
+                    match version {
+                        Version::Vulkan10 => StorageClass::Uniform,
+                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                    },
+                    None,
+                );
+                b.decorate(
+                    array_type,
+                    Decoration::ArrayStride,
+                    &[Operand::LiteralInt32(offset)],
+                );
+                b.member_decorate(
+                    struct_type,
+                    0,
+                    Decoration::Offset,
+                    &[Operand::LiteralInt32(0)],
+                );
+                b.member_decorate(
+                    struct_type,
+                    1,
+                    Decoration::Offset,
+                    &[Operand::LiteralInt32(4)],
+                );
+                b.decorate(
+                    struct_type,
+                    match version {
+                        Version::Vulkan10 => Decoration::BufferBlock,
+                        Version::Vulkan11 => Decoration::Block,
+                    },
+                    &[],
+                );
+                b.decorate(
+                    struct_instance,
+                    Decoration::DescriptorSet,
+                    &[Operand::LiteralInt32(0)],
+                );
+                b.decorate(
+                    struct_instance,
+                    Decoration::Binding,
+                    &[Operand::LiteralInt32(binding_number)],
+                );
+                if io {
+                    if input {
+                        bindings.push((
+                            binding_number,
+                            BindType::Public(IO::Input, in_set[t].clone()),
+                        ))
+                    }
+                    if output {
+                        bindings.push((
+                            binding_number,
+                            BindType::Public(IO::Output, out_set[t].clone()),
+                        ))
+                    }
+                } else {
+                    bindings.push((binding_number, BindType::Private(ms)));
+                }
+            }
             _ => {}
         };
     }
@@ -350,6 +434,7 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
         w: &Words,
         token_map: &mut HashMap<TokenId, Word>,
         label_map: &mut HashMap<LabelId, Word>,
+        st_set: &HashSet<TokenId>,
     ) -> Result<(), String> {
         let get_const_type = |x: TokenId| match program.symbol[&x] {
             TokenType::Constant(DataType::Bool) => ty.type_bool,
@@ -360,6 +445,17 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
         };
         let get_const_datatype = |x: TokenId| match program.symbol[&x] {
             TokenType::Constant(x) => x,
+            _ => unreachable!(),
+        };
+        let get_array_type = |x: TokenId, io: bool| match (program.symbol[&x], io) {
+            (TokenType::Array(DataType::Bool), false) => ty.type_funbool,
+            (TokenType::Array(DataType::U32), false) => ty.type_funu32,
+            (TokenType::Array(DataType::I32), false) => ty.type_funi32,
+            (TokenType::Array(DataType::F32), false) => ty.type_funf32,
+            (TokenType::Array(DataType::Bool), true) => ty.type_stbool,
+            (TokenType::Array(DataType::U32), true) => ty.type_stu32,
+            (TokenType::Array(DataType::I32), true) => ty.type_sti32,
+            (TokenType::Array(DataType::F32), true) => ty.type_stf32,
             _ => unreachable!(),
         };
         for op in operations {
@@ -929,14 +1025,14 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                 Op::If(ref cond_op, cond, l0, ref a0, lend) => {
                     let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
                     let lend = *label_map.entry(lend).or_insert_with(|| b.id());
-                    compile(cond_op, b, program, ty, cn, w, token_map, label_map)?;
+                    compile(cond_op, b, program, ty, cn, w, token_map, label_map, st_set)?;
                     b.selection_merge(lend, SelectionControl::NONE)
                         .map_err(|x| format!("{:?}", x))?;
                     b.branch_conditional(token_map[&cond], l0, lend, &[])
                         .map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l0))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a0, b, program, ty, cn, w, token_map, label_map)?;
+                    compile(a0, b, program, ty, cn, w, token_map, label_map, st_set)?;
                     b.branch(lend).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lend))
                         .map_err(|x| format!("{:?}", x))?;
@@ -945,18 +1041,18 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                     let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
                     let l1 = *label_map.entry(l1).or_insert_with(|| b.id());
                     let lend = *label_map.entry(lend).or_insert_with(|| b.id());
-                    compile(cond_op, b, program, ty, cn, w, token_map, label_map)?;
+                    compile(cond_op, b, program, ty, cn, w, token_map, label_map, st_set)?;
                     b.selection_merge(lend, SelectionControl::NONE)
                         .map_err(|x| format!("{:?}", x))?;
                     b.branch_conditional(token_map[&cond], l0, l1, &[])
                         .map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l0))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a0, b, program, ty, cn, w, token_map, label_map)?;
+                    compile(a0, b, program, ty, cn, w, token_map, label_map, st_set)?;
                     b.branch(lend).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l1))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a1, b, program, ty, cn, w, token_map, label_map)?;
+                    compile(a1, b, program, ty, cn, w, token_map, label_map, st_set)?;
                     b.branch(lend).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lend))
                         .map_err(|x| format!("{:?}", x))?;
@@ -975,12 +1071,12 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                     b.branch(lcond).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lcond))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(cond_op, b, program, ty, cn, w, token_map, label_map)?;
+                    compile(cond_op, b, program, ty, cn, w, token_map, label_map, st_set)?;
                     b.branch_conditional(token_map[&cond], l0, lend, &[])
                         .map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l0))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a0, b, program, ty, cn, w, token_map, label_map)?;
+                    compile(a0, b, program, ty, cn, w, token_map, label_map, st_set)?;
                     b.branch(lcontinue).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lcontinue))
                         .map_err(|x| format!("{:?}", x))?;
@@ -1020,8 +1116,26 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                         &[],
                     ).map_err(|x| format!("{:?}", x))?;
                 }
-                Op::ArrayStore(v, i, a) => unimplemented!(),
-                Op::ArrayLoad(r, v, i) => unimplemented!(),
+                Op::ArrayStore(v, i, a) => {
+                    let pointer = b.access_chain(
+                        get_array_type(v, st_set.contains(&v)),
+                        None,
+                        token_map[&v],
+                        &[cn.CONSTANT_1, token_map[&i]],
+                    ).map_err(|x| format!("{:?}", x))?;
+                    b.store(pointer, token_map[&a], None, &[])
+                        .map_err(|x| format!("{:?}", x))?;
+                }
+                Op::ArrayLoad(r, v, i) => {
+                    let pointer = b.access_chain(
+                        get_array_type(v, st_set.contains(&v)),
+                        None,
+                        token_map[&v],
+                        &[cn.CONSTANT_1, token_map[&i]],
+                    ).map_err(|x| format!("{:?}", x))?;
+                    b.load(get_const_type(r), Some(token_map[&r]), pointer, None, &[])
+                        .map_err(|x| format!("{:?}", x))?;
+                }
             };
         }
         Ok(())
@@ -1035,6 +1149,7 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
         &w,
         &mut token_map,
         &mut label_map,
+        &st_set,
     )?;
     b.ret().map_err(|x| format!("{:?}", x))?;
     b.end_function().map_err(|x| format!("{:?}", x))?;
