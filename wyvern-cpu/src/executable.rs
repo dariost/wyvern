@@ -58,6 +58,12 @@ impl CpuExecutable {
                 .ok_or_else(|| format!("Missing input {}", name))?;
             memory.insert(*id, value.get_data());
         }
+        for (name, id) in &self.program.output {
+            let value = self.binding
+                .get(&(IO::Output, name.clone()))
+                .ok_or_else(|| format!("Missing output {}", name))?;
+            memory.insert(*id, value.get_data());
+        }
         let operations = self.program.operation.clone();
         let mut last_labels = (LabelId::default(), LabelId::default());
         self.run_block(&operations, &mut memory, &mut last_labels)?;
@@ -176,6 +182,9 @@ impl CpuExecutable {
                 Op::BitOr(r, a, b) => Self::op_bitor(memory, r, a, b)?,
                 Op::BitXor(r, a, b) => Self::op_bitxor(memory, r, a, b)?,
                 Op::ArrayNew(r, s, t, _, _) => {
+                    if memory.contains_key(&r) {
+                        continue;
+                    }
                     let s = Self::get_u32(memory, s)?;
                     Self::new_vector(memory, r, s, t);
                 }
