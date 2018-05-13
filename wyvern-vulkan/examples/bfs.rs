@@ -1,44 +1,89 @@
-#![feature(nll, fs_read_write)]
+#![feature(nll)]
 
-extern crate byteorder;
 extern crate wyvern_core as wcore;
-extern crate wyvern_vulkan as wvulkan;
+extern crate wyvern_vulkan as wvk;
 
-use byteorder::{ByteOrder, LittleEndian};
-use std::fs::write;
+use std::io::stdin;
 use wcore::builder::ProgramBuilder;
+use wcore::executor::{Executable, Executor, Resource, IO};
+use wcore::program::{ConstantScalar, ConstantVector, TokenValue};
 use wcore::types::{Array, Constant, Variable};
-use wvulkan::generator::{generate, Version};
+use wvk::executor::VkExecutor;
 
-fn u32tou8(v: &[u32]) -> Vec<u8> {
-    let mut result = Vec::new();
-    for i in v {
-        let mut buf = [0; 4];
-        LittleEndian::write_u32(&mut buf, *i);
-        for j in &buf {
-            result.push(*j);
-        }
-    }
-    result
+fn read_pair() -> (usize, usize) {
+    let mut buffer = String::new();
+    stdin().read_line(&mut buffer).unwrap();
+    let v: Vec<_> = buffer
+        .trim()
+        .split(" ")
+        .map(|x| x.parse().unwrap())
+        .collect();
+    (v[0], v[1])
 }
 
 fn main() {
+    let (n, m) = read_pair();
+    let mut children = vec![Vec::new(); n];
+    for _ in 0..m {
+        let (a, b) = read_pair();
+        children[a].push(b);
+        children[b].push(a);
+    }
+    let mut nodes = vec![0_u32; n + 1];
+    let mut edges = vec![0_u32; m * 2];
+    let dist = vec![0_u32; n];
+    let mut index = 0;
+    for i in 0..=n {
+        nodes[i] = index as u32;
+        if i == n {
+            continue;
+        }
+        for adj in &children[i] {
+            edges[index] = *adj as u32;
+            index += 1;
+        }
+    }
     let builder = ProgramBuilder::new();
-    bfs(&builder, 100, 1000);
-    let p = builder.finalize().unwrap();
-    write(
-        "bfs.spv",
-        u32tou8(&generate(&p, Version::Vulkan11).unwrap().0),
-    ).unwrap();
+    bfs(&builder, n as u32, m as u32);
+    let program = builder.finalize().unwrap();
+    let executor = VkExecutor::new(Default::default()).unwrap();
+    let mut executable = executor.compile(program).unwrap();
+    let nodes_resource = executor.new_resource().unwrap();
+    let edges_resource = executor.new_resource().unwrap();
+    let dist_resource = executor.new_resource().unwrap();
+    let starting_node_resource = executor.new_resource().unwrap();
+    nodes_resource.set_data(TokenValue::Vector(ConstantVector::U32(nodes)));
+    edges_resource.set_data(TokenValue::Vector(ConstantVector::U32(edges)));
+    dist_resource.set_data(TokenValue::Vector(ConstantVector::U32(dist)));
+    executable.bind("nodes", IO::Input, nodes_resource.clone());
+    executable.bind("edges", IO::Input, edges_resource.clone());
+    executable.bind("starting_node", IO::Input, starting_node_resource.clone());
+    executable.bind("distance", IO::Output, dist_resource.clone());
+    let mut max_distance = 0;
+    for i in 0..n {
+        starting_node_resource.set_data(TokenValue::Scalar(ConstantScalar::U32(i as u32)));
+        executable.run().unwrap();
+        let value = match dist_resource.get_data() {
+            TokenValue::Vector(ConstantVector::U32(x)) => x,
+            _ => unreachable!(),
+        };
+        for v in value {
+            if v > max_distance {
+                max_distance = v;
+            }
+        }
+        eprintln!("Processed {}/{}", i + 1, n);
+    }
+    println!("Diameter: {}", max_distance);
 }
 
 fn bfs(builder: &ProgramBuilder, v: u32, e: u32) {
     let zero = Constant::new(0_u32, builder);
     let one = Constant::new(1_u32, builder);
     let nodes: Array<u32> = Array::new(zero, v + 1, true, builder).mark_as_input("nodes");
-    let edges: Array<u32> = Array::new(zero, e, true, builder).mark_as_input("edges");
+    let edges: Array<u32> = Array::new(zero, e * 2, true, builder).mark_as_input("edges");
     let dist: Array<u32> = Array::new(zero, v, true, builder).mark_as_output("distance");
-    let stop: Array<u32> = Array::new(zero, v, true, builder);
+    let stop: Array<u32> = Array::new(one, 1, true, builder);
     let starting_node: Constant<u32> = Variable::new(builder).mark_as_input("starting_node").load();
     let id = builder.worker_id();
     let size = builder.num_workers();
@@ -61,6 +106,7 @@ fn bfs(builder: &ProgramBuilder, v: u32, e: u32) {
         |_| stop.at(zero).load().ne(one),
         |_| {
             stop.at(zero).store(one);
+            node.store(id);
             builder.while_loop(
                 |_| node.load().lt(num_nodes),
                 |_| {
@@ -92,6 +138,7 @@ fn bfs(builder: &ProgramBuilder, v: u32, e: u32) {
                 },
             );
             builder.memory_barrier();
+            node.store(id);
             builder.while_loop(
                 |_| node.load().lt(num_nodes),
                 |_| {

@@ -12,14 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![feature(nll)]
+use wcore::executor::Resource;
+use wcore::program::{TokenType, TokenValue};
 
-extern crate rspirv;
-extern crate spirv_headers;
-extern crate vulkano;
-extern crate wyvern_core as wcore;
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct VkResource {}
 
-pub mod executable;
-pub mod executor;
-pub mod generator;
-pub mod resource;
+impl Resource for VkResource {
+    fn clear(&self) {
+        unimplemented!();
+    }
+
+    fn token_type(&self) -> TokenType {
+        unimplemented!();
+    }
+
+    fn set_data(&self, value: TokenValue) {
+        unimplemented!();
+    }
+
+    fn get_data(&self) -> TokenValue {
+        unimplemented!();
+    }
+}

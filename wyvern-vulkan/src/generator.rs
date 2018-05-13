@@ -22,34 +22,35 @@ use wcore::executor::IO;
 use wcore::program::StorageType;
 use wcore::program::{ConstantScalar, DataType, LabelId, Op, Program, TokenId, TokenType};
 
+#[derive(Debug, Clone)]
 pub enum BindType {
     Public(IO, String),
     Private(u32),
 }
 
-type Binding = (u32, BindType);
+pub type Binding = (u32, BindType, bool);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Version {
+pub enum VkVersion {
     Vulkan10,
     Vulkan11,
 }
 
 #[allow(non_snake_case)]
 #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Binding>), String> {
+pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<Binding>), String> {
     const LOCAL_SIZE: u32 = 1;
     let mut next_binding = 0;
     let mut bindings = Vec::new();
     let mut b = Builder::new();
     match version {
-        Version::Vulkan10 => b.set_version(1, 0),
-        Version::Vulkan11 => b.set_version(1, 3),
+        VkVersion::Vulkan10 => b.set_version(1, 0),
+        VkVersion::Vulkan11 => b.set_version(1, 3),
     };
     b.capability(Capability::Shader);
     match version {
-        Version::Vulkan10 => {}
-        Version::Vulkan11 => {
+        VkVersion::Vulkan10 => {}
+        VkVersion::Vulkan11 => {
             b.extension("SPV_KHR_storage_buffer_storage_class");
             b.extension("SPV_KHR_variable_pointers");
         }
@@ -104,8 +105,8 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
     let type_funi32 = b.type_pointer(None, StorageClass::Function, type_i32);
     let type_funf32 = b.type_pointer(None, StorageClass::Function, type_f32);
     let stclass = match version {
-        Version::Vulkan10 => StorageClass::Uniform,
-        Version::Vulkan11 => StorageClass::StorageBuffer,
+        VkVersion::Vulkan10 => StorageClass::Uniform,
+        VkVersion::Vulkan11 => StorageClass::StorageBuffer,
     };
     let type_stbool = b.type_pointer(None, stclass, type_bool);
     let type_stu32 = b.type_pointer(None, stclass, type_u32);
@@ -199,8 +200,8 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                 let struct_type_pointer = b.type_pointer(
                     None,
                     match version {
-                        Version::Vulkan10 => StorageClass::Uniform,
-                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                        VkVersion::Vulkan10 => StorageClass::Uniform,
+                        VkVersion::Vulkan11 => StorageClass::StorageBuffer,
                     },
                     struct_type,
                 );
@@ -208,8 +209,8 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                     struct_type_pointer,
                     Some(token_map[&t]),
                     match version {
-                        Version::Vulkan10 => StorageClass::Uniform,
-                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                        VkVersion::Vulkan10 => StorageClass::Uniform,
+                        VkVersion::Vulkan11 => StorageClass::StorageBuffer,
                     },
                     None,
                 );
@@ -222,8 +223,8 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                 b.decorate(
                     struct_type,
                     match version {
-                        Version::Vulkan10 => Decoration::BufferBlock,
-                        Version::Vulkan11 => Decoration::Block,
+                        VkVersion::Vulkan10 => Decoration::BufferBlock,
+                        VkVersion::Vulkan11 => Decoration::Block,
                     },
                     &[],
                 );
@@ -241,12 +242,14 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                     bindings.push((
                         binding_number,
                         BindType::Public(IO::Input, in_set[t].clone()),
+                        false,
                     ))
                 }
                 if output {
                     bindings.push((
                         binding_number,
                         BindType::Public(IO::Output, out_set[t].clone()),
+                        false,
                     ))
                 }
             }
@@ -268,8 +271,8 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                 let struct_type_pointer = b.type_pointer(
                     None,
                     match version {
-                        Version::Vulkan10 => StorageClass::Uniform,
-                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                        VkVersion::Vulkan10 => StorageClass::Uniform,
+                        VkVersion::Vulkan11 => StorageClass::StorageBuffer,
                     },
                     struct_type,
                 );
@@ -277,8 +280,8 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                     struct_type_pointer,
                     Some(token_map[&t]),
                     match version {
-                        Version::Vulkan10 => StorageClass::Uniform,
-                        Version::Vulkan11 => StorageClass::StorageBuffer,
+                        VkVersion::Vulkan10 => StorageClass::Uniform,
+                        VkVersion::Vulkan11 => StorageClass::StorageBuffer,
                     },
                     None,
                 );
@@ -302,8 +305,8 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                 b.decorate(
                     struct_type,
                     match version {
-                        Version::Vulkan10 => Decoration::BufferBlock,
-                        Version::Vulkan11 => Decoration::Block,
+                        VkVersion::Vulkan10 => Decoration::BufferBlock,
+                        VkVersion::Vulkan11 => Decoration::Block,
                     },
                     &[],
                 );
@@ -322,16 +325,18 @@ pub fn generate(program: &Program, version: Version) -> Result<(Vec<u32>, Vec<Bi
                         bindings.push((
                             binding_number,
                             BindType::Public(IO::Input, in_set[t].clone()),
+                            true,
                         ))
                     }
                     if output {
                         bindings.push((
                             binding_number,
                             BindType::Public(IO::Output, out_set[t].clone()),
+                            true,
                         ))
                     }
                 } else {
-                    bindings.push((binding_number, BindType::Private(ms)));
+                    bindings.push((binding_number, BindType::Private(ms), true));
                 }
             }
             _ => {}
