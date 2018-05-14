@@ -14,6 +14,7 @@
 
 #![feature(nll)]
 
+extern crate rand;
 extern crate rspirv;
 extern crate spirv_headers;
 extern crate vulkano;

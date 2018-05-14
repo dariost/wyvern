@@ -14,9 +14,11 @@
 
 use executable::VkExecutable;
 use generator::{generate, Binding, VkVersion};
+use rand::{thread_rng, Rng};
+use resource::ResourceType;
 use resource::VkResource;
 use std::ffi::CString;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use vulkano::descriptor::descriptor::DescriptorDesc;
 use vulkano::descriptor::descriptor::{DescriptorBufferDesc, DescriptorDescTy, ShaderStages};
 use vulkano::descriptor::descriptor_set::FixedSizeDescriptorSetsPool;
@@ -107,7 +109,10 @@ impl Executor for VkExecutor {
     }
 
     fn new_resource(&self) -> Result<Arc<VkResource>, String> {
-        unimplemented!();
+        Ok(Arc::new(VkResource {
+            id: thread_rng().gen(),
+            resource: Mutex::new(ResourceType::Empty),
+        }))
     }
 }
 
