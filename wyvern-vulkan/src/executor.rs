@@ -17,6 +17,7 @@ use generator::{generate, Binding, VkVersion};
 use rand::{thread_rng, Rng};
 use resource::ResourceType;
 use resource::VkResource;
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::{Arc, Mutex};
 use vulkano::descriptor::descriptor::DescriptorDesc;
@@ -87,9 +88,10 @@ impl Executor for VkExecutor {
         let module = unsafe {
             ShaderModule::from_words(self.device.clone(), &binary).map_err(|x| format!("{:?}", x))?
         };
+        let num_bindings = bindings.iter().map(|x| x.0 + 1).max().unwrap_or(0);
         let layout = ModuleLayout {
             bindings: bindings.clone(),
-            num_bindings: bindings.iter().map(|x| x.0 + 1).max().unwrap_or(0),
+            num_bindings,
         };
         let pipeline = Arc::new({
             ComputePipeline::new(
@@ -105,13 +107,15 @@ impl Executor for VkExecutor {
             module,
             bindings,
             program,
+            assoc: vec![None; num_bindings as usize],
         })
     }
 
     fn new_resource(&self) -> Result<Arc<VkResource>, String> {
         Ok(Arc::new(VkResource {
             id: thread_rng().gen(),
-            resource: Mutex::new(ResourceType::Empty),
+            resource: Arc::new(Mutex::new(ResourceType::Empty)),
+            device: self.device.clone(),
         }))
     }
 }

@@ -13,8 +13,12 @@
 // limitations under the License.
 
 use generator::{BindType, Binding};
+use resource::ResourceType;
 use resource::VkResource;
+use std::collections::HashMap;
+use std::mem::swap;
 use std::sync::Arc;
+use std::sync::Mutex;
 use vulkano::descriptor::descriptor_set::FixedSizeDescriptorSetsPool;
 use vulkano::pipeline::shader::ShaderModule;
 use vulkano::pipeline::ComputePipelineAbstract;
@@ -25,6 +29,7 @@ pub struct VkExecutable {
     pub(crate) module: Arc<ShaderModule>,
     pub(crate) program: Program,
     pub(crate) bindings: Vec<Binding>,
+    pub(crate) assoc: Vec<Option<Arc<VkResource>>>,
     pub(crate) pool: FixedSizeDescriptorSetsPool<Arc<ComputePipelineAbstract>>,
 }
 
@@ -39,11 +44,33 @@ impl Executable for VkExecutable {
         kind: IO,
         resource: Arc<VkResource>,
     ) -> Option<Arc<Self::Resource>> {
-        unimplemented!();
+        let name = name.to_string();
+        for b in &self.bindings {
+            match b.1 {
+                BindType::Public(k, ref n) if k == kind && *n == name => {
+                    let mut result = Some(resource);
+                    swap(&mut result, &mut self.assoc[b.0 as usize]);
+                    return result;
+                }
+                _ => {}
+            }
+        }
+        unreachable!();
     }
 
     fn unbind<S: ToString>(&mut self, name: S, kind: IO) -> Option<Arc<Self::Resource>> {
-        unimplemented!();
+        let name = name.to_string();
+        for b in &self.bindings {
+            match b.1 {
+                BindType::Public(k, ref n) if k == kind && *n == name => {
+                    let mut result = None;
+                    swap(&mut result, &mut self.assoc[b.0 as usize]);
+                    return result;
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     fn run(&mut self) -> Result<String, String> {
