@@ -17,18 +17,16 @@ use generator::{generate, Binding, VkVersion};
 use rand::{thread_rng, Rng};
 use resource::ResourceType;
 use resource::VkResource;
-use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::{Arc, Mutex};
 use vulkano::descriptor::descriptor::DescriptorDesc;
 use vulkano::descriptor::descriptor::{DescriptorBufferDesc, DescriptorDescTy, ShaderStages};
-use vulkano::descriptor::descriptor_set::FixedSizeDescriptorSetsPool;
+use vulkano::descriptor::descriptor_set::{DescriptorsCount, UnsafeDescriptorPool};
 use vulkano::descriptor::pipeline_layout::{PipelineLayoutDesc, PipelineLayoutDescPcRange};
 use vulkano::device::{Device, DeviceExtensions, Queue};
 use vulkano::instance::{Instance, InstanceExtensions, PhysicalDevice, Version};
 use vulkano::pipeline::shader::ShaderModule;
 use vulkano::pipeline::ComputePipeline;
-use vulkano::pipeline::ComputePipelineAbstract;
 use wcore::executor::Executor;
 use wcore::program::Program;
 
@@ -92,6 +90,7 @@ impl Executor for VkExecutor {
         let layout = ModuleLayout {
             bindings: bindings.clone(),
             num_bindings,
+            version: self.version,
         };
         let pipeline = Arc::new({
             ComputePipeline::new(
@@ -100,14 +99,32 @@ impl Executor for VkExecutor {
                 &(),
             ).map_err(|x| format!("{:?}", x))?
         });
-        let pool: FixedSizeDescriptorSetsPool<Arc<ComputePipelineAbstract>> =
-            FixedSizeDescriptorSetsPool::new(pipeline.clone(), 0);
+        let layout = ModuleLayout {
+            bindings: bindings.clone(),
+            num_bindings,
+            version: self.version,
+        };
+        let pool = UnsafeDescriptorPool::new(
+            self.device.clone(),
+            &DescriptorsCount {
+                uniform_buffer: 128,
+                storage_buffer: 128,
+                ..DescriptorsCount::zero()
+            },
+            1,
+            true,
+        ).unwrap();
         Ok(VkExecutable {
             pool,
             module,
             bindings,
             program,
+            pipeline: pipeline.clone(),
             assoc: vec![None; num_bindings as usize],
+            layout,
+            device: self.device.clone(),
+            version: self.version,
+            queue: self.queue,
         })
     }
 
@@ -116,14 +133,16 @@ impl Executor for VkExecutor {
             id: thread_rng().gen(),
             resource: Arc::new(Mutex::new(ResourceType::Empty)),
             device: self.device.clone(),
+            version: self.version,
         }))
     }
 }
 
 #[derive(Clone)]
-struct ModuleLayout {
+pub(crate) struct ModuleLayout {
     bindings: Vec<Binding>,
     num_bindings: u32,
+    version: VkVersion,
 }
 
 unsafe impl PipelineLayoutDesc for ModuleLayout {
@@ -150,8 +169,11 @@ unsafe impl PipelineLayoutDesc for ModuleLayout {
                     stages: ShaderStages::compute(),
                     readonly: false,
                     ty: DescriptorDescTy::Buffer(DescriptorBufferDesc {
-                        storage: true,
-                        dynamic: Some(bind.2),
+                        storage: match self.version {
+                            VkVersion::Vulkan10 => false,
+                            VkVersion::Vulkan11 => true,
+                        },
+                        dynamic: Some(false),
                     }),
                 });
             }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use generator::VkVersion;
 use std::f32;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
@@ -22,6 +23,7 @@ use vulkano::device::Device;
 use wcore::executor::Resource;
 use wcore::program::{ConstantScalar, ConstantVector, DataType, TokenType, TokenValue};
 
+#[derive(Clone)]
 pub(crate) enum ResourceType {
     Empty,
     U32(Arc<CpuAccessibleBuffer<u32>>),
@@ -36,6 +38,7 @@ pub struct VkResource {
     pub(crate) id: u32,
     pub(crate) resource: Arc<Mutex<ResourceType>>,
     pub(crate) device: Arc<Device>,
+    pub(crate) version: VkVersion,
 }
 
 impl VkResource {

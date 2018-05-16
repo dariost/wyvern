@@ -25,7 +25,7 @@ use wcore::program::{ConstantScalar, DataType, LabelId, Op, Program, TokenId, To
 #[derive(Debug, Clone)]
 pub enum BindType {
     Public(IO, String),
-    Private(u32),
+    Private(u32, DataType),
 }
 
 pub type Binding = (u32, BindType, bool);
@@ -336,7 +336,7 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                         ))
                     }
                 } else {
-                    bindings.push((binding_number, BindType::Private(ms), true));
+                    bindings.push((binding_number, BindType::Private(ms, tty), true));
                 }
             }
             _ => {}
