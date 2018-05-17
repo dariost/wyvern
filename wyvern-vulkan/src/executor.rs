@@ -124,7 +124,7 @@ impl Executor for VkExecutor {
             layout,
             device: self.device.clone(),
             version: self.version,
-            queue: self.queue,
+            queue: self.queue.clone(),
         })
     }
 

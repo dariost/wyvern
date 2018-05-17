@@ -16,23 +16,28 @@ use executor::ModuleLayout;
 use generator::{BindType, Binding, VkVersion};
 use resource::ResourceType;
 use resource::VkResource;
-use std::collections::HashMap;
+use vulkano::buffer::BufferAccess;
 use std::mem::swap;
 use std::sync::Arc;
-use std::sync::Mutex;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
 use vulkano::buffer::BufferUsage;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
+use vulkano::descriptor::descriptor::DescriptorDesc;
 use vulkano::descriptor::descriptor_set::DescriptorWrite;
 use vulkano::descriptor::descriptor_set::UnsafeDescriptorPool;
+use vulkano::descriptor::descriptor_set::UnsafeDescriptorSet;
 use vulkano::descriptor::descriptor_set::UnsafeDescriptorSetLayout;
+use vulkano::descriptor::descriptor_set::{DescriptorSet, DescriptorSetDesc};
 use vulkano::descriptor::pipeline_layout::PipelineLayout;
 use vulkano::descriptor::pipeline_layout::PipelineLayoutDesc;
 use vulkano::device::{Device, Queue};
+use vulkano::image::ImageViewAccess;
 use vulkano::pipeline::shader::ShaderModule;
 use vulkano::pipeline::ComputePipeline;
 use wcore::executor::{Executable, IO};
 use wcore::program::{DataType, Program};
+use vulkano::sync::now;
+use vulkano::sync::GpuFuture;
 
 pub struct VkExecutable {
     pub(crate) module: Arc<ShaderModule>,
@@ -93,7 +98,7 @@ impl Executable for VkExecutable {
             (0..self.layout.num_bindings_in_set(0).unwrap()).map(|x| self.layout.descriptor(0, x)),
         ).unwrap();
         let layout = (0..1).map(|_| &unsafe_layout_object);
-        let mut set = Arc::new(unsafe { self.pool.alloc(layout) }.unwrap().next().unwrap());
+        let mut set = unsafe { self.pool.alloc(layout) }.unwrap().next().unwrap();
         let mut buffers = Vec::new();
         for i in 0..self.assoc.len() {
             if let Some(ref x) = self.assoc[i] {
@@ -155,18 +160,76 @@ impl Executable for VkExecutable {
             ResourceType::Empty => unreachable!(),
         });
         unsafe { set.write(&self.device, writer) };
+        let sanitized_set = MyDescriptorSet {
+            set: set,
+            layout: self.layout.clone(),
+            buffers: buffers
+        };
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             self.device.clone(),
             self.queue.family(),
         ).unwrap()
-            .dispatch([1536, 1, 1], self.pipeline.clone(), set.clone(), ())
+            .dispatch([896, 1, 1], self.pipeline.clone(), sanitized_set, ())
             .unwrap()
             .build()
             .unwrap();
-        unimplemented!();
+        let future = now(self.device.clone())
+            .then_execute(self.queue.clone(), command_buffer).unwrap()
+            .then_signal_fence_and_flush().unwrap();
+        future.wait(None).unwrap();
         unsafe { self.pool.reset() }.unwrap();
-        unimplemented!();
+        Ok("".into())
     }
 }
 
-struct MyDescriptorSet {}
+struct MyDescriptorSet {
+    set: UnsafeDescriptorSet,
+    layout: ModuleLayout,
+    buffers: Vec<ResourceType>
+}
+
+unsafe impl DescriptorSetDesc for MyDescriptorSet {
+    fn num_bindings(&self) -> usize {
+        self.layout.num_bindings_in_set(0).unwrap()
+    }
+
+    fn descriptor(&self, binding: usize) -> Option<DescriptorDesc> {
+        eprintln!("Binding: {:?}", binding);
+        self.layout.descriptor(0, binding)
+    }
+}
+
+unsafe impl DescriptorSet for MyDescriptorSet {
+    fn inner(&self) -> &UnsafeDescriptorSet {
+        &self.set
+    }
+
+    fn num_buffers(&self) -> usize {
+        self.buffers.len()
+    }
+
+    fn buffer(&self, index: usize) -> Option<(&BufferAccess, u32)> {
+        if index >= self.buffers.len() {
+            return None;
+        }
+        eprintln!("Index: {:?}", index);
+        let desc_index = index as u32;
+        match self.buffers[index] {
+            ResourceType::U32(ref x) => Some((x, desc_index)),
+            ResourceType::I32(ref x) => Some((x, desc_index)),
+            ResourceType::F32(ref x) => Some((x, desc_index)),
+            ResourceType::VU32(ref x) => Some((x, desc_index)),
+            ResourceType::VI32(ref x) => Some((x, desc_index)),
+            ResourceType::VF32(ref x) => Some((x, desc_index)),
+            ResourceType::Empty => unreachable!(),
+        }
+    }
+
+    fn num_images(&self) -> usize {
+        0
+    }
+
+    fn image(&self, _index: usize) -> Option<(&ImageViewAccess, u32)> {
+        None
+    }
+}
