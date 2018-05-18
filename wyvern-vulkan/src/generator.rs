@@ -342,12 +342,13 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
             _ => {}
         };
     }
-    let _main_function = b.begin_function(
-        ty.type_void,
-        Some(main_function),
-        FunctionControl::empty(),
-        type_main_function,
-    ).map_err(|x| format!("{:?}", x))?;
+    let _main_function =
+        b.begin_function(
+            ty.type_void,
+            Some(main_function),
+            FunctionControl::empty(),
+            type_main_function,
+        ).map_err(|x| format!("{:?}", x))?;
     label_map.insert(
         LabelId(0),
         b.begin_basic_block(None).map_err(|x| format!("{:?}", x))?,
@@ -355,17 +356,18 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
     for t in program.storage.keys() {
         if in_set.contains_key(&t) || out_set.contains_key(&t) {
             if let StorageType::Variable(tty) = program.storage[&t] {
-                let new_token = b.access_chain(
-                    match tty {
-                        DataType::Bool => ty.type_stbool,
-                        DataType::U32 => ty.type_stu32,
-                        DataType::I32 => ty.type_sti32,
-                        DataType::F32 => ty.type_stf32,
-                    },
-                    None,
-                    token_map[&t],
-                    &[cn.CONSTANT_0],
-                ).map_err(|x| format!("{:?}", x))?;
+                let new_token =
+                    b.access_chain(
+                        match tty {
+                            DataType::Bool => ty.type_stbool,
+                            DataType::U32 => ty.type_stu32,
+                            DataType::I32 => ty.type_sti32,
+                            DataType::F32 => ty.type_stf32,
+                        },
+                        None,
+                        token_map[&t],
+                        &[cn.CONSTANT_0],
+                    ).map_err(|x| format!("{:?}", x))?;
                 let result = token_map.insert(*t, new_token);
                 assert!(result.is_some());
             }
@@ -409,17 +411,20 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
             StorageType::SharedArray(_, _) => {}
         };
     }
-    let global_invocation_id_var =
-        b.access_chain(ty.type_inu32, None, global_invocation_id, &[cn.CONSTANT_0])
-            .map_err(|x| format!("{:?}", x))?;
-    let num_work_groups_var =
-        b.access_chain(ty.type_inu32, None, num_work_groups, &[cn.CONSTANT_0])
-            .map_err(|x| format!("{:?}", x))?;
-    let global_invocation_id_word = b.load(ty.type_u32, None, global_invocation_id_var, None, &[])
+    let global_invocation_id_var = b
+        .access_chain(ty.type_inu32, None, global_invocation_id, &[cn.CONSTANT_0])
         .map_err(|x| format!("{:?}", x))?;
-    let num_workers_word = b.load(ty.type_u32, None, num_work_groups_var, None, &[])
+    let num_work_groups_var = b
+        .access_chain(ty.type_inu32, None, num_work_groups, &[cn.CONSTANT_0])
         .map_err(|x| format!("{:?}", x))?;
-    let num_workers_word = b.imul(ty.type_u32, None, num_workers_word, cn.LOCAL_SIZE_WORD)
+    let global_invocation_id_word = b
+        .load(ty.type_u32, None, global_invocation_id_var, None, &[])
+        .map_err(|x| format!("{:?}", x))?;
+    let num_workers_word = b
+        .load(ty.type_u32, None, num_work_groups_var, None, &[])
+        .map_err(|x| format!("{:?}", x))?;
+    let num_workers_word = b
+        .imul(ty.type_u32, None, num_workers_word, cn.LOCAL_SIZE_WORD)
         .map_err(|x| format!("{:?}", x))?;
     struct Words {
         worker_id: Word,
@@ -440,6 +445,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
         token_map: &mut HashMap<TokenId, Word>,
         label_map: &mut HashMap<LabelId, Word>,
         st_set: &HashSet<TokenId>,
+        in_set: &HashMap<TokenId, String>,
+        out_set: &HashMap<TokenId, String>,
     ) -> Result<(), String> {
         let get_const_type = |x: TokenId| match program.symbol[&x] {
             TokenType::Constant(DataType::Bool) => ty.type_bool,
@@ -830,15 +837,19 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                         }
                         DataType::F32 => unreachable!(),
                         DataType::Bool => {
-                            let na = b.logical_not(ty.type_bool, None, token_map[&a])
+                            let na = b
+                                .logical_not(ty.type_bool, None, token_map[&a])
                                 .map_err(|x| format!("{:?}", x))?;
                             let a = token_map[&a];
-                            let nd = b.logical_not(ty.type_bool, None, token_map[&d])
+                            let nd = b
+                                .logical_not(ty.type_bool, None, token_map[&d])
                                 .map_err(|x| format!("{:?}", x))?;
                             let d = token_map[&d];
-                            let p1 = b.logical_and(ty.type_bool, None, a, nd)
+                            let p1 = b
+                                .logical_and(ty.type_bool, None, a, nd)
                                 .map_err(|x| format!("{:?}", x))?;
-                            let p2 = b.logical_and(ty.type_bool, None, na, d)
+                            let p2 = b
+                                .logical_and(ty.type_bool, None, na, d)
                                 .map_err(|x| format!("{:?}", x))?;
                             b.logical_or(ty.type_bool, Some(token_map[&r]), p1, p2)
                                 .map_err(|x| format!("{:?}", x))?;
@@ -1030,14 +1041,19 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                 Op::If(ref cond_op, cond, l0, ref a0, lend) => {
                     let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
                     let lend = *label_map.entry(lend).or_insert_with(|| b.id());
-                    compile(cond_op, b, program, ty, cn, w, token_map, label_map, st_set)?;
+                    compile(
+                        cond_op, b, program, ty, cn, w, token_map, label_map, st_set, in_set,
+                        out_set,
+                    )?;
                     b.selection_merge(lend, SelectionControl::NONE)
                         .map_err(|x| format!("{:?}", x))?;
                     b.branch_conditional(token_map[&cond], l0, lend, &[])
                         .map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l0))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a0, b, program, ty, cn, w, token_map, label_map, st_set)?;
+                    compile(
+                        a0, b, program, ty, cn, w, token_map, label_map, st_set, in_set, out_set,
+                    )?;
                     b.branch(lend).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lend))
                         .map_err(|x| format!("{:?}", x))?;
@@ -1046,18 +1062,25 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                     let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
                     let l1 = *label_map.entry(l1).or_insert_with(|| b.id());
                     let lend = *label_map.entry(lend).or_insert_with(|| b.id());
-                    compile(cond_op, b, program, ty, cn, w, token_map, label_map, st_set)?;
+                    compile(
+                        cond_op, b, program, ty, cn, w, token_map, label_map, st_set, in_set,
+                        out_set,
+                    )?;
                     b.selection_merge(lend, SelectionControl::NONE)
                         .map_err(|x| format!("{:?}", x))?;
                     b.branch_conditional(token_map[&cond], l0, l1, &[])
                         .map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l0))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a0, b, program, ty, cn, w, token_map, label_map, st_set)?;
+                    compile(
+                        a0, b, program, ty, cn, w, token_map, label_map, st_set, in_set, out_set,
+                    )?;
                     b.branch(lend).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l1))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a1, b, program, ty, cn, w, token_map, label_map, st_set)?;
+                    compile(
+                        a1, b, program, ty, cn, w, token_map, label_map, st_set, in_set, out_set,
+                    )?;
                     b.branch(lend).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lend))
                         .map_err(|x| format!("{:?}", x))?;
@@ -1076,12 +1099,17 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                     b.branch(lcond).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lcond))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(cond_op, b, program, ty, cn, w, token_map, label_map, st_set)?;
+                    compile(
+                        cond_op, b, program, ty, cn, w, token_map, label_map, st_set, in_set,
+                        out_set,
+                    )?;
                     b.branch_conditional(token_map[&cond], l0, lend, &[])
                         .map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(l0))
                         .map_err(|x| format!("{:?}", x))?;
-                    compile(a0, b, program, ty, cn, w, token_map, label_map, st_set)?;
+                    compile(
+                        a0, b, program, ty, cn, w, token_map, label_map, st_set, in_set, out_set,
+                    )?;
                     b.branch(lcontinue).map_err(|x| format!("{:?}", x))?;
                     b.begin_basic_block(Some(lcontinue))
                         .map_err(|x| format!("{:?}", x))?;
@@ -1103,26 +1131,35 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                         .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayNew(r, s, _, _, _) => {
-                    if st_set.contains(&r) {
+                    if in_set.contains_key(&r) || out_set.contains_key(&r) {
                         continue;
                     }
                     let size_pointer =
-                        b.access_chain(ty.type_funu32, None, token_map[&r], &[cn.CONSTANT_0])
-                            .map_err(|x| format!("{:?}", x))?;
+                        b.access_chain(
+                            if st_set.contains(&r) {
+                                ty.type_stu32
+                            } else {
+                                ty.type_funu32
+                            },
+                            None,
+                            token_map[&r],
+                            &[cn.CONSTANT_0],
+                        ).map_err(|x| format!("{:?}", x))?;
                     b.store(size_pointer, token_map[&s], None, &[])
                         .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayLen(r, v) => {
-                    let size_pointer = b.access_chain(
-                        if st_set.contains(&v) {
-                            ty.type_stu32
-                        } else {
-                            ty.type_funu32
-                        },
-                        None,
-                        token_map[&v],
-                        &[cn.CONSTANT_0],
-                    ).map_err(|x| format!("{:?}", x))?;
+                    let size_pointer =
+                        b.access_chain(
+                            if st_set.contains(&v) {
+                                ty.type_stu32
+                            } else {
+                                ty.type_funu32
+                            },
+                            None,
+                            token_map[&v],
+                            &[cn.CONSTANT_0],
+                        ).map_err(|x| format!("{:?}", x))?;
                     b.load(
                         get_const_type(r),
                         Some(token_map[&r]),
@@ -1132,22 +1169,24 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                     ).map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayStore(v, i, a) => {
-                    let pointer = b.access_chain(
-                        get_array_type(v, st_set.contains(&v)),
-                        None,
-                        token_map[&v],
-                        &[cn.CONSTANT_1, token_map[&i]],
-                    ).map_err(|x| format!("{:?}", x))?;
+                    let pointer =
+                        b.access_chain(
+                            get_array_type(v, st_set.contains(&v)),
+                            None,
+                            token_map[&v],
+                            &[cn.CONSTANT_1, token_map[&i]],
+                        ).map_err(|x| format!("{:?}", x))?;
                     b.store(pointer, token_map[&a], None, &[])
                         .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayLoad(r, v, i) => {
-                    let pointer = b.access_chain(
-                        get_array_type(v, st_set.contains(&v)),
-                        None,
-                        token_map[&v],
-                        &[cn.CONSTANT_1, token_map[&i]],
-                    ).map_err(|x| format!("{:?}", x))?;
+                    let pointer =
+                        b.access_chain(
+                            get_array_type(v, st_set.contains(&v)),
+                            None,
+                            token_map[&v],
+                            &[cn.CONSTANT_1, token_map[&i]],
+                        ).map_err(|x| format!("{:?}", x))?;
                     b.load(get_const_type(r), Some(token_map[&r]), pointer, None, &[])
                         .map_err(|x| format!("{:?}", x))?;
                 }
@@ -1165,6 +1204,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
         &mut token_map,
         &mut label_map,
         &st_set,
+        &in_set,
+        &out_set,
     )?;
     b.ret().map_err(|x| format!("{:?}", x))?;
     b.end_function().map_err(|x| format!("{:?}", x))?;

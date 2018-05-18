@@ -104,6 +104,7 @@ impl Executable for VkExecutable {
             if let Some(ref x) = self.assoc[i] {
                 buffers.push(x.get_handle().lock().unwrap().clone())
             } else if let BindType::Private(size, ty) = self.bindings[i].1 {
+                let size = size + 1;
                 match ty {
                     DataType::U32 => buffers.push(ResourceType::VU32(
                         CpuAccessibleBuffer::from_iter(
@@ -161,15 +162,15 @@ impl Executable for VkExecutable {
         });
         unsafe { set.write(&self.device, writer) };
         let sanitized_set = MyDescriptorSet {
-            set: set,
+            set,
             layout: self.layout.clone(),
-            buffers: buffers
+            buffers
         };
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             self.device.clone(),
             self.queue.family(),
         ).unwrap()
-            .dispatch([896, 1, 1], self.pipeline.clone(), sanitized_set, ())
+            .dispatch([1536, 1, 1], self.pipeline.clone(), sanitized_set, ())
             .unwrap()
             .build()
             .unwrap();
@@ -194,7 +195,6 @@ unsafe impl DescriptorSetDesc for MyDescriptorSet {
     }
 
     fn descriptor(&self, binding: usize) -> Option<DescriptorDesc> {
-        eprintln!("Binding: {:?}", binding);
         self.layout.descriptor(0, binding)
     }
 }
@@ -212,7 +212,6 @@ unsafe impl DescriptorSet for MyDescriptorSet {
         if index >= self.buffers.len() {
             return None;
         }
-        eprintln!("Index: {:?}", index);
         let desc_index = index as u32;
         match self.buffers[index] {
             ResourceType::U32(ref x) => Some((x, desc_index)),

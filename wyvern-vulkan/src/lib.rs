@@ -19,6 +19,7 @@ extern crate rspirv;
 extern crate spirv_headers;
 extern crate vulkano;
 extern crate wyvern_core as wcore;
+extern crate byteorder;
 
 pub mod executable;
 pub mod executor;

@@ -166,6 +166,6 @@ impl Hash for VkResource {
 
 impl Debug for VkResource {
     fn fmt(&self, f: &mut Formatter) -> ::std::fmt::Result {
-        write!(f, "VkResource {{id: {}}}", self.id)
+        write!(f, "VkResource {{ id: {} }}", self.id)
     }
 }
