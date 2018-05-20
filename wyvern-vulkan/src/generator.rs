@@ -39,7 +39,7 @@ pub enum VkVersion {
 #[allow(non_snake_case)]
 #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<Binding>), String> {
-    const LOCAL_SIZE: u32 = 1;
+    const LOCAL_SIZE: u32 = 128;
     let mut next_binding = 0;
     let mut bindings = Vec::new();
     let mut b = Builder::new();

@@ -82,7 +82,7 @@ impl Executor for VkExecutor {
 
     fn compile(&self, program: Program) -> Result<VkExecutable, String> {
         let (binary, bindings) = generate(&program, self.version)?;
-        fn u32tou8(v: &[u32]) -> Vec<u8> {
+        /*fn u32tou8(v: &[u32]) -> Vec<u8> {
             use byteorder::{ByteOrder, LittleEndian};
             let mut result = Vec::new();
             for i in v {
@@ -94,7 +94,7 @@ impl Executor for VkExecutor {
             }
             result
         }
-        ::std::fs::write("dump.spv", u32tou8(&binary)).unwrap();
+        ::std::fs::write("dump.spv", u32tou8(&binary)).unwrap();*/
         // TODO: validate and optimize the binary
         let module = unsafe {
             ShaderModule::from_words(self.device.clone(), &binary).map_err(|x| format!("{:?}", x))?

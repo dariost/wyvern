@@ -30,13 +30,13 @@ pub trait Type: Copy + PartialEq + Default {
 #[derive(Clone, Copy)]
 pub struct Constant<'a, T: Type> {
     phantom: PhantomData<T>,
-    pub(crate) info: ProgramObjectInfo<'a>,
+    pub info: ProgramObjectInfo<'a>,
 }
 
 #[derive(Clone, Copy)]
 pub struct Variable<'a, T: Type> {
     phantom: PhantomData<T>,
-    pub(crate) info: ProgramObjectInfo<'a>,
+    pub info: ProgramObjectInfo<'a>,
     ty: VariableType,
 }
 
@@ -49,7 +49,7 @@ pub enum VariableType {
 #[derive(Clone, Copy)]
 pub struct Array<'a, T: Type> {
     phantom: PhantomData<T>,
-    pub(crate) info: ProgramObjectInfo<'a>,
+    pub info: ProgramObjectInfo<'a>,
     shared: bool,
 }
 
@@ -339,7 +339,8 @@ impl<'a, T: Type> Array<'a, T> {
         assert_eq!(self.info.builder, index.info.builder);
         Variable {
             phantom: PhantomData,
-            info: self.info
+            info: self
+                .info
                 .builder
                 .gen_token(TokenType::ArrayPointer(T::data_type()), None),
             ty: VariableType::ArrayIndex(self.info.token.id, index.info.token.id),

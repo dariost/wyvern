@@ -27,9 +27,9 @@ pub struct ProgramBuilder {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ProgramObjectInfo<'a> {
+pub struct ProgramObjectInfo<'a> {
     pub(crate) token: Token,
-    pub(crate) builder: &'a ProgramBuilder,
+    pub builder: &'a ProgramBuilder,
 }
 
 #[derive(Debug)]

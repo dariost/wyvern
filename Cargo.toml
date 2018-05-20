@@ -6,3 +6,8 @@ authors = ["Dario Ostuni <dario.ostuni@gmail.com>"]
 [dependencies]
 wyvern-core = { path = "wyvern-core" }
 wyvern-cpu = { path = "wyvern-cpu" }
+wyvern-vulkan = { path = "wyvern-vulkan" }
+
+[dev-dependencies]
+clap = "2.31"
+png = "0.12"

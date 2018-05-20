@@ -14,6 +14,8 @@
 
 pub extern crate wyvern_core;
 pub extern crate wyvern_cpu;
+pub extern crate wyvern_vulkan;
 
 pub use wyvern_core as core;
 pub use wyvern_cpu as cpu;
+pub use wyvern_vulkan as vk;
