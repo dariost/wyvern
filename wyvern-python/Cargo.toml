@@ -1,0 +1,15 @@
+[package]
+name = "wyvern-python"
+version = "0.1.0"
+authors = ["Dario Ostuni <dario.ostuni@gmail.com>"]
+
+[lib]
+name = "wyvern"
+crate-type = ["cdylib"]
+
+[dependencies.pyo3]
+version = "0.2"
+features = ["extension-module"]
+
+[dependencies]
+wyvern = { path = "../" }
