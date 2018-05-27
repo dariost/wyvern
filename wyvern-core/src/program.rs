@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     pub symbol: HashMap<TokenId, TokenType>,
     pub operation: Vec<Op>,
@@ -23,14 +23,14 @@ pub struct Program {
     pub output: HashMap<String, TokenId>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum StorageType {
     Variable(DataType),
     SharedArray(DataType, u32),
     PrivateArray(DataType, u32),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum TokenType {
     Constant(DataType),
     Variable(DataType),
@@ -39,7 +39,7 @@ pub enum TokenType {
     Null,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum DataType {
     Bool,
     I32,
@@ -54,7 +54,7 @@ pub enum TokenValue {
     Null,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum ConstantScalar {
     Bool(bool),
     I32(i32),
@@ -70,10 +70,10 @@ pub enum ConstantVector {
     F32(Vec<f32>),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default, Serialize, Deserialize)]
 pub struct TokenId(pub u32);
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Default, Serialize, Deserialize)]
 pub struct LabelId(pub u32);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -82,7 +82,7 @@ pub struct Token {
     pub(crate) ty: TokenType,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Op {
     Phi(TokenId, TokenId, LabelId, TokenId, LabelId),
     If(Vec<Op>, TokenId, LabelId, Vec<Op>, LabelId),
