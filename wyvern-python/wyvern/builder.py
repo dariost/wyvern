@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import json
-from .types import Variable, Array, Constant
+from .types import Variable, Array, Constant, IoType, DataType
 from .util import UnreachableError
 from copy import deepcopy
 
@@ -72,16 +72,119 @@ class ProgramBuilder:
     def _add_command(self, cmd):
         self._stack[-1].append(cmd)
 
-    def _push_stack(self, cmd):
+    def _push_stack(self):
         self._stack.append([])
 
-    def _pop_stack(self, cmd):
-        self._program["operation"].extend(self._stack.pop())
+    def _pop_stack(self):
+        return self._stack.pop()
 
 
 class Context:
+    def If(self, cond, body):
+        self._builder._push_stack()
+        condition = cond()
+        if type(condition) != Constant or condition._ty != DataType.bool:
+            raise TypeError
+        cond = self._builder._pop_stack()
+        self._builder._push_stack()
+        body()
+        body = self._builder._pop_stack()
+        self._builder._add_command({
+            "If": [cond, condition._tid, self._builder._next_label_id(),
+                   body, self._builder._next_label_id()]
+        })
+
+    def IfElse(self, cond, body1, body2):
+        self._builder._push_stack()
+        condition = cond()
+        if type(condition) != Constant or condition._ty != DataType.bool:
+            raise TypeError
+        cond = self._builder._pop_stack()
+        self._builder._push_stack()
+        body1()
+        body1 = self._builder._pop_stack()
+        self._builder._push_stack()
+        body2()
+        body2 = self._builder._pop_stack()
+        self._builder._add_command({
+            "IfElse": [cond, condition._tid, self._builder._next_label_id(),
+                       body1, self._builder._next_label_id(),
+                       body2, self._builder._next_label_id()]
+        })
+
+    def While(self, cond, body):
+        self._builder._push_stack()
+        condition = cond()
+        if type(condition) != Constant or condition._ty != DataType.bool:
+            raise TypeError
+        cond = self._builder._pop_stack()
+        self._builder._push_stack()
+        body()
+        body = self._builder._pop_stack()
+        self._builder._add_command({
+            "While": [self._builder._next_label_id(), cond, condition._tid,
+                      self._builder._next_label_id(), body,
+                      self._builder._next_label_id()]
+
+        })
+
+    def workerId(self):
+        wid = Constant._new_constant(self, DataType.uint32)
+        self._builder._add_command({
+            "WorkerId": [wid._tid]
+        })
+        return wid
+
+    def numWorkers(self):
+        wnum = Constant._new_constant(self, DataType.uint32)
+        self._builder._add_command({
+            "NumWorkers": [wnum._tid]
+        })
+        return wnum
+
     def getProgramBuilder(self):
         return self._builder
+
+    def declVariable(self, name, ty, io_type):
+        if name in self._var:
+            raise NameError
+        tid = self._new_variable(ty, name)
+        if io_type == IoType.private:
+            pass
+        elif io_type in (IoType.input, IoType.output):
+            self._builder._program["storage"][str(tid)] = {
+                "Variable": ty.value
+            }
+            self._builder._program[io_type.value][name] = tid
+        else:
+            raise UnreachableError
+
+    def declArray(self, name, ty, io_type, size, max_size=0):
+        size = int(size)
+        if name in self._var:
+            raise NameError
+        if type(size) != Constant or size._ty != DataType.uint32:
+            raise TypeError
+        tid = self._new_array(ty, name)
+        self._builder._add_command({
+            "ArrayNew": [tid, size._tid, ty.value,
+                         max_size, io_type != IoType.private]
+        })
+        if io_type in (IoType.input, IoType.output):
+            array_type = "SharedArray"
+        else:
+            array_type = "PrivateArray"
+        self._builder._program["storage"][str(tid)] = {
+            array_type: [ty.value, max_size]
+        }
+
+    def _get_array_object(self, name):
+        array = Array()
+        array._ctx = self
+        array._ty = self._var[name][1]
+        array._name = name
+        array._tid = self._var[name][0]
+        return array
 
     def _new_constant(self, ty):
         return self._builder._new_constant(ty)
@@ -92,7 +195,9 @@ class Context:
         return tid
 
     def _new_array(self, ty, name):
-        raise NotImplementedError
+        tid = self._builder._new_array(ty)
+        self._var[name] = (tid, ty, Array)
+        return tid
 
     def _get(self, name):
         if name not in self._var:
@@ -103,10 +208,10 @@ class Context:
             self._builder._add_command({"Load": [const._tid, tid]})
             return const
         elif pyty == Array:
-            raise NotImplementedError
+            return self._get_array_object(name)
         raise UnreachableError
 
-    def _set(self, name, value):
+    def _sanitize(self, value):
         if type(value) == Constant:
             pass
         elif type(value) == int:
@@ -120,6 +225,10 @@ class Context:
             value = Constant.bool(value, self)
         else:
             raise TypeError
+        return value
+
+    def _set(self, name, value):
+        value = self._sanitize(value)
         if name in self._var:
             assert value._ty == self._var[name][1]
             self._builder._add_command({

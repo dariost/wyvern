@@ -13,3 +13,4 @@ features = ["extension-module"]
 
 [dependencies]
 wyvern = { path = "../" }
+serde_json = "1.0"

@@ -3,3 +3,4 @@ __pycache__/
 Cargo.lock
 **/*.rs.bk
 *.spv
+*.so

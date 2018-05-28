@@ -15,6 +15,6 @@
 # limitations under the License.
 
 from .builder import ProgramBuilder
-from .types import DataType
+from .types import DataType, IoType
 
-__all__ = [ProgramBuilder, DataType]
+__all__ = [ProgramBuilder, DataType, IoType]

@@ -25,12 +25,49 @@ class DataType(Enum):
     bool = "Bool"
 
 
+class IoType(Enum):
+    input = "input"
+    output = "output"
+    private = "private"
+
+
 class Variable:
     pass
 
 
 class Array:
-    pass
+    def _get_key(self, key):
+        if type(key) == int:
+            key = Constant.uint32(key, self._ctx)
+        elif type(key) == Constant and key._ty == DataType.uint32:
+            pass
+        else:
+            raise TypeError
+        return key
+
+    def __setitem__(self, key, value):
+        key = self._get_key(key)
+        value = self._ctx._sanitize(value)
+        if type(value) != Constant or value._ty != self._ty:
+            raise TypeError
+        self._ctx.getProgramBuilder()._add_command({
+            "ArrayStore": [self._tid, key._tid, value._tid]
+        })
+
+    def __getitem__(self, key):
+        key = self._get_key(key)
+        element = Constant._new_constant(self._ctx, self._ty)
+        self._ctx.getProgramBuilder()._add_command({
+            "ArrayLoad": [element._tid, self._tid, key._tid]
+        })
+        return element
+
+    def __len__(self):
+        length = Constant._new_constant(self._ctx, DataType.uint32)
+        self._ctx.getProgramBuilder()._add_command({
+            "ArrayLen": [length._tid, self._tid]
+        })
+        return length
 
 
 class Constant:
@@ -41,6 +78,7 @@ class Constant:
         return self.getContext().getProgramBuilder()
 
     def __add__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -51,6 +89,7 @@ class Constant:
         return result
 
     def __sub__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -61,6 +100,7 @@ class Constant:
         return result
 
     def __mul__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -71,6 +111,7 @@ class Constant:
         return result
 
     def __floordiv__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -84,6 +125,7 @@ class Constant:
         return self.__floordiv__(other)
 
     def __mod__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -118,6 +160,7 @@ class Constant:
         return result
 
     def __lshift__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32)
@@ -128,6 +171,7 @@ class Constant:
         return result
 
     def __rshift__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32)
@@ -138,6 +182,7 @@ class Constant:
         return result
 
     def __xor__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.bool)
@@ -148,6 +193,7 @@ class Constant:
         return result
 
     def __and__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.bool)
@@ -158,6 +204,7 @@ class Constant:
         return result
 
     def __or__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.bool)
@@ -168,6 +215,7 @@ class Constant:
         return result
 
     def __eq__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32,
@@ -179,6 +227,7 @@ class Constant:
         return result
 
     def __ne__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32,
@@ -190,6 +239,7 @@ class Constant:
         return result
 
     def __lt__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -200,6 +250,7 @@ class Constant:
         return result
 
     def __le__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -210,6 +261,7 @@ class Constant:
         return result
 
     def __gt__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
@@ -220,6 +272,7 @@ class Constant:
         return result
 
     def __ge__(self, other):
+        other = self._ctx._sanitize(other)
         assert self.getProgramBuilder() == other.getProgramBuilder()
         assert self._ty == other._ty
         assert self._ty in (DataType.int32, DataType.uint32, DataType.float32)
