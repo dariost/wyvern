@@ -149,12 +149,12 @@ class Context:
         if name in self._var:
             raise NameError
         tid = self._new_variable(ty, name)
+        self._builder._program["storage"][str(tid)] = {
+            "Variable": ty.value
+        }
         if io_type == IoType.private:
             pass
         elif io_type in (IoType.input, IoType.output):
-            self._builder._program["storage"][str(tid)] = {
-                "Variable": ty.value
-            }
             self._builder._program[io_type.value][name] = tid
         else:
             raise UnreachableError
