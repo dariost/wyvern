@@ -36,6 +36,7 @@ pub struct VkExecutor {
     queue: Arc<Queue>,
     device: Arc<Device>,
     version: VkVersion,
+    work_size: u32,
 }
 
 impl Executor for VkExecutor {
@@ -50,6 +51,8 @@ impl Executor for VkExecutor {
         let physical_device = PhysicalDevice::enumerate(&instance)
             .next()
             .ok_or("No Vulkan device found")?;
+        let work_size = physical_device.limits().max_compute_work_group_invocations();
+        eprintln!("Using Vulkan device: {}", physical_device.name());
         let version = match physical_device.api_version() {
             Version {
                 major: 1, minor: 0, ..
@@ -77,6 +80,7 @@ impl Executor for VkExecutor {
             queue,
             device,
             version,
+            work_size
         })
     }
 
@@ -138,6 +142,7 @@ impl Executor for VkExecutor {
             device: self.device.clone(),
             version: self.version,
             queue: self.queue.clone(),
+            work_size: self.work_size
         })
     }
 

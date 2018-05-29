@@ -108,7 +108,7 @@ fn main() {
     };
     let data = colorize(data);
     writer.write_image_data(&data).unwrap();
-    println!("{:?}", time);
+    println!("Time: {:?}", time);
 }
 
 fn colorize(data: &[f32]) -> Vec<u8> {

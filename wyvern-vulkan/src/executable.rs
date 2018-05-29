@@ -50,6 +50,7 @@ pub struct VkExecutable {
     pub(crate) device: Arc<Device>,
     pub(crate) queue: Arc<Queue>,
     pub(crate) version: VkVersion,
+    pub(crate) work_size: u32,
 }
 
 impl Executable for VkExecutable {
@@ -170,7 +171,7 @@ impl Executable for VkExecutable {
             self.device.clone(),
             self.queue.family(),
         ).unwrap()
-            .dispatch([1536, 1, 1], self.pipeline.clone(), sanitized_set, ())
+            .dispatch([self.work_size, 1, 1], self.pipeline.clone(), sanitized_set, ())
             .unwrap()
             .build()
             .unwrap();
