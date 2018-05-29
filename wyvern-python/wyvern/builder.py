@@ -172,6 +172,7 @@ class Context:
         })
         if io_type in (IoType.input, IoType.output):
             array_type = "SharedArray"
+            self._builder._program[io_type.value][name] = tid
         else:
             array_type = "PrivateArray"
         self._builder._program["storage"][str(tid)] = {
