@@ -160,7 +160,7 @@ class Context:
             raise UnreachableError
 
     def declArray(self, name, ty, io_type, size, max_size=0):
-        size = int(size)
+        size = self._sanitize(size)
         if name in self._var:
             raise NameError
         if type(size) != Constant or size._ty != DataType.uint32:
