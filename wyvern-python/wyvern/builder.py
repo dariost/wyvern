@@ -131,14 +131,14 @@ class Context:
     def workerId(self):
         wid = Constant._new_constant(self, DataType.uint32)
         self._builder._add_command({
-            "WorkerId": [wid._tid]
+            "WorkerId": wid._tid
         })
         return wid
 
     def numWorkers(self):
         wnum = Constant._new_constant(self, DataType.uint32)
         self._builder._add_command({
-            "NumWorkers": [wnum._tid]
+            "NumWorkers": wnum._tid
         })
         return wnum
 
