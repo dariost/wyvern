@@ -125,8 +125,8 @@ impl WyVkExecutable {
         } else {
             unreachable!();
         };
-        let resource: &WyVkResource = PyObject::extract(&resource, py).unwrap();
-        self.data.bind(name, kind, resource.data.clone()).unwrap();
+        let resource: &WyVkResource = PyObject::extract(&resource, py).expect("PyO3 error");
+        self.data.bind(name, kind, resource.data.clone());
         Ok(())
     }
 
@@ -138,7 +138,7 @@ impl WyVkExecutable {
         } else {
             unreachable!();
         };
-        self.data.unbind(name, kind).unwrap();
+        self.data.unbind(name, kind);
         Ok(())
     }
 

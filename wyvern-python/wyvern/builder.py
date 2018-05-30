@@ -149,9 +149,6 @@ class Context:
         if name in self._var:
             raise NameError
         tid = self._new_variable(ty, name)
-        self._builder._program["storage"][str(tid)] = {
-            "Variable": ty.value
-        }
         if io_type == IoType.private:
             pass
         elif io_type in (IoType.input, IoType.output):
@@ -193,6 +190,9 @@ class Context:
     def _new_variable(self, ty, name):
         tid = self._builder._new_variable(ty)
         self._var[name] = (tid, ty, Variable)
+        self._builder._program["storage"][str(tid)] = {
+            "Variable": ty.value
+        }
         return tid
 
     def _new_array(self, ty, name):
