@@ -10,6 +10,11 @@ import wyvern as wy
 from time import time
 import png
 
+WIDTH = 3840
+HEIGHT = 2160
+ITERATIONS = 2000
+
+
 def mandelbrot(g_ctx: wy.builder.Context, id: str, a0: str, b0: str,
                iterations: int):
     ctx = g_ctx.getProgramBuilder().newContext()
@@ -66,20 +71,21 @@ def program(size: int, center_x: float, center_y: float, zoom: float,
     ctx.While(lambda: ctx.id < ctx.width * ctx.height, loop)
     return builder.finalize()
 
+
 if __name__ == "__main__":
-    result = program(1920*1080, -0.75, 0.0, 1080/2.5, 2000)
+    result = program(WIDTH * HEIGHT, -0.75, 0.0, HEIGHT / 2.5, ITERATIONS)
     executor = wy.WyVkExecutor()
     executable = executor.compile(result)
+    start = time()
     input = executor.newResource()
     output = executor.newResource()
-    input.set_data_array_uint32([1920, 1080])
-    output.set_data_array_float32([0.0] * 1920 * 1080)
+    input.set_data_array_uint32([WIDTH, HEIGHT])
+    output.set_data_array_float32([0.0] * WIDTH * HEIGHT)
     executable.bind("input", wy.IoType.input.value, input)
     executable.bind("output", wy.IoType.output.value, output)
-    start = time()
     executable.run()
-    print("Time: %.3fs" % (time() - start),)
     result = output.get_data_array_float32()
+    print("Time: %.3fs" % (time() - start),)
     def mapper(x):
         if x <= 2.0:
             return 0
@@ -87,6 +93,6 @@ if __name__ == "__main__":
             return 255
     result = [mapper(x) for x in result]
     out = open("out.png", "wb")
-    w = png.Writer(1920, 1080, greyscale=True)
+    w = png.Writer(WIDTH, HEIGHT, greyscale=True)
     w.write_array(out, result)
     out.close()

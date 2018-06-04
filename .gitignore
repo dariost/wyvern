@@ -5,3 +5,4 @@ Cargo.lock
 *.spv
 *.so
 *.png
+*.ppm
