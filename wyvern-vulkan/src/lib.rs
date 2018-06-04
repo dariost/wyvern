@@ -14,12 +14,13 @@
 
 #![feature(nll)]
 
+extern crate byteorder;
 extern crate rand;
 extern crate rspirv;
 extern crate spirv_headers;
+extern crate tempfile;
 extern crate vulkano;
 extern crate wyvern_core as wcore;
-extern crate byteorder;
 
 pub mod executable;
 pub mod executor;

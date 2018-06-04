@@ -7,7 +7,7 @@ extern crate wyvern_vulkan as wvulkan;
 use byteorder::{ByteOrder, LittleEndian};
 use std::fs::write;
 use wcore::builder::ProgramBuilder;
-use wcore::types::{Constant, Variable, Array};
+use wcore::types::{Constant, Variable};
 use wvulkan::generator::{generate, VkVersion};
 
 fn u32tou8(v: &[u32]) -> Vec<u8> {

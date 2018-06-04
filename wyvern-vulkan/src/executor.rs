@@ -18,7 +18,10 @@ use rand::{thread_rng, Rng};
 use resource::ResourceType;
 use resource::VkResource;
 use std::ffi::CString;
+use std::io::Write;
+use std::process::Command;
 use std::sync::{Arc, Mutex};
+use tempfile::NamedTempFile;
 use vulkano::descriptor::descriptor::DescriptorDesc;
 use vulkano::descriptor::descriptor::{DescriptorBufferDesc, DescriptorDescTy, ShaderStages};
 use vulkano::descriptor::descriptor_set::{DescriptorsCount, UnsafeDescriptorPool};
@@ -51,7 +54,9 @@ impl Executor for VkExecutor {
         let physical_device = PhysicalDevice::enumerate(&instance)
             .next()
             .ok_or("No Vulkan device found")?;
-        let work_size = physical_device.limits().max_compute_work_group_invocations();
+        let work_size = physical_device
+            .limits()
+            .max_compute_work_group_invocations();
         eprintln!("Using Vulkan device: {}", physical_device.name());
         let version = match physical_device.api_version() {
             Version {
@@ -62,6 +67,9 @@ impl Executor for VkExecutor {
             } => VkVersion::Vulkan11,
             _ => VkVersion::Vulkan11,
         };
+        if version == VkVersion::Vulkan10 {
+            unimplemented!("Vulkan 1.0 is not currently supported");
+        }
         let queue = physical_device
             .queue_families()
             .find(|&q| q.supports_compute())
@@ -80,13 +88,13 @@ impl Executor for VkExecutor {
             queue,
             device,
             version,
-            work_size
+            work_size,
         })
     }
 
     fn compile(&self, program: Program) -> Result<VkExecutable, String> {
-        let (binary, bindings) = generate(&program, self.version)?;
-        /*fn u32tou8(v: &[u32]) -> Vec<u8> {
+        let (mut binary, bindings) = generate(&program, self.version)?;
+        fn u32tou8(v: &[u32]) -> Vec<u8> {
             use byteorder::{ByteOrder, LittleEndian};
             let mut result = Vec::new();
             for i in v {
@@ -98,8 +106,42 @@ impl Executor for VkExecutor {
             }
             result
         }
-        ::std::fs::write("dump.spv", u32tou8(&binary)).unwrap();*/
-        // TODO: validate and optimize the binary
+        fn u8tou32(v: &[u8]) -> Vec<u32> {
+            use byteorder::{ByteOrder, LittleEndian};
+            assert!(v.len() % 4 == 0);
+            let mut result = Vec::new();
+            for i in 0..(v.len() / 4) {
+                result.push(LittleEndian::read_u32(&v[(4 * i)..(4 * (i + 1))]));
+            }
+            result
+        }
+        let mut file_on_disk = NamedTempFile::new().map_err(|x| format!("{:?}", x))?;
+        file_on_disk
+            .write_all(&u32tou8(&binary))
+            .map_err(|x| format!("{:?}", x))?;
+        if let Ok(output) = Command::new("spirv-val").arg(file_on_disk.path()).output() {
+            if !output.status.success() {
+                let file_name = file_on_disk
+                    .path()
+                    .parent()
+                    .unwrap()
+                    .join("wyvern_vulkan_dump.spv");
+                file_on_disk.persist(&file_name).unwrap();
+                panic!("Internal bug: spirv-val failed ({:?})!", file_name);
+            }
+            if let Ok(output) = Command::new("spirv-opt")
+                .arg(file_on_disk.path())
+                .arg("-O")
+                .arg("-o")
+                .arg("-")
+                .output()
+            {
+                if output.status.success() {
+                    binary = u8tou32(&output.stdout);
+                    eprintln!("SPIR-V binary optimized!");
+                }
+            }
+        }
         let module = unsafe {
             ShaderModule::from_words(self.device.clone(), &binary).map_err(|x| format!("{:?}", x))?
         };
@@ -142,7 +184,7 @@ impl Executor for VkExecutor {
             device: self.device.clone(),
             version: self.version,
             queue: self.queue.clone(),
-            work_size: self.work_size
+            work_size: self.work_size,
         })
     }
 

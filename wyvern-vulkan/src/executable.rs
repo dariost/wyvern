@@ -16,10 +16,10 @@ use executor::ModuleLayout;
 use generator::{BindType, Binding, VkVersion};
 use resource::ResourceType;
 use resource::VkResource;
-use vulkano::buffer::BufferAccess;
 use std::mem::swap;
 use std::sync::Arc;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
+use vulkano::buffer::BufferAccess;
 use vulkano::buffer::BufferUsage;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::descriptor::descriptor::DescriptorDesc;
@@ -34,13 +34,15 @@ use vulkano::device::{Device, Queue};
 use vulkano::image::ImageViewAccess;
 use vulkano::pipeline::shader::ShaderModule;
 use vulkano::pipeline::ComputePipeline;
-use wcore::executor::{Executable, IO};
-use wcore::program::{DataType, Program};
 use vulkano::sync::now;
 use vulkano::sync::GpuFuture;
+use wcore::executor::{Executable, IO};
+use wcore::program::{DataType, Program};
 
 pub struct VkExecutable {
+    #[allow(dead_code)]
     pub(crate) module: Arc<ShaderModule>,
+    #[allow(dead_code)]
     pub(crate) program: Program,
     pub(crate) bindings: Vec<Binding>,
     pub(crate) assoc: Vec<Option<Arc<VkResource>>>,
@@ -165,19 +167,26 @@ impl Executable for VkExecutable {
         let sanitized_set = MyDescriptorSet {
             set,
             layout: self.layout.clone(),
-            buffers
+            buffers,
         };
         let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
             self.device.clone(),
             self.queue.family(),
         ).unwrap()
-            .dispatch([self.work_size, 1, 1], self.pipeline.clone(), sanitized_set, ())
+            .dispatch(
+                [self.work_size, 1, 1],
+                self.pipeline.clone(),
+                sanitized_set,
+                (),
+            )
             .unwrap()
             .build()
             .unwrap();
         let future = now(self.device.clone())
-            .then_execute(self.queue.clone(), command_buffer).unwrap()
-            .then_signal_fence_and_flush().unwrap();
+            .then_execute(self.queue.clone(), command_buffer)
+            .unwrap()
+            .then_signal_fence_and_flush()
+            .unwrap();
         future.wait(None).unwrap();
         unsafe { self.pool.reset() }.unwrap();
         Ok("".into())
@@ -187,7 +196,7 @@ impl Executable for VkExecutable {
 struct MyDescriptorSet {
     set: UnsafeDescriptorSet,
     layout: ModuleLayout,
-    buffers: Vec<ResourceType>
+    buffers: Vec<ResourceType>,
 }
 
 unsafe impl DescriptorSetDesc for MyDescriptorSet {

@@ -38,6 +38,7 @@ pub struct VkResource {
     pub(crate) id: u32,
     pub(crate) resource: Arc<Mutex<ResourceType>>,
     pub(crate) device: Arc<Device>,
+    #[allow(dead_code)]
     pub(crate) version: VkVersion,
 }
 
