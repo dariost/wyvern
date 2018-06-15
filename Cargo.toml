@@ -11,3 +11,4 @@ wyvern-vulkan = { path = "wyvern-vulkan" }
 [dev-dependencies]
 clap = "2.31"
 png = "0.12"
+num_cpus = "1.0"

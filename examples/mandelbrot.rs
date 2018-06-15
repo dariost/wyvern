@@ -1,4 +1,7 @@
+#![feature(stdsimd)]
+
 extern crate clap;
+extern crate num_cpus;
 extern crate png;
 extern crate wyvern;
 
@@ -8,6 +11,11 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::ops::{Add, Div, Mul, Sub};
 use std::path::PathBuf;
+use std::simd::f32x8;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, Instant};
 use wyvern::core::builder::ProgramBuilder;
 use wyvern::core::executor::{Executable, Executor, Resource, IO};
@@ -27,6 +35,7 @@ enum Mode {
     Native,
     Cpu,
     Vk,
+    MtNative,
 }
 
 trait Number:
@@ -49,7 +58,7 @@ fn get_opts() -> (Mode, u32, u32, PathBuf) {
                 .short("m")
                 .long("mode")
                 .help("Compute engine")
-                .possible_values(&["native", "cpu", "vulkan"])
+                .possible_values(&["native", "cpu", "vulkan", "mt"])
                 .required(true)
                 .takes_value(true),
         )
@@ -81,6 +90,7 @@ fn get_opts() -> (Mode, u32, u32, PathBuf) {
         "native" => Mode::Native,
         "cpu" => Mode::Cpu,
         "vulkan" => Mode::Vk,
+        "mt" => Mode::MtNative,
         _ => unreachable!(),
     };
     let width = match args.value_of("width") {
@@ -105,6 +115,7 @@ fn main() {
         Mode::Native => native(width, height),
         Mode::Cpu => unimplemented!(),
         Mode::Vk => vk(width, height),
+        Mode::MtNative => mt(width, height),
     };
     let data = colorize(data);
     writer.write_image_data(&data).unwrap();
@@ -115,6 +126,67 @@ fn colorize(data: &[f32]) -> Vec<u8> {
     data.iter()
         .map(|&x| if x <= 2.0 { 0 } else { 255 })
         .collect()
+}
+
+fn mt(width: u32, height: u32) -> (Vec<f32>, Duration) {
+    let width = width as usize;
+    let height = height as usize;
+    let half_width = f32x8::splat(width as f32 / 2.0);
+    let half_height = f32x8::splat(height as f32 / 2.0);
+    let vzoom = f32x8::splat(ZOOM);
+    let vx0 = f32x8::splat(CENTER_X);
+    let vy0 = f32x8::splat(CENTER_Y);
+    let v2 = f32x8::splat(2.0);
+    assert_eq!((width * height) % 8, 0);
+    let now = Instant::now();
+    let cores = num_cpus::get();
+    let mut out = vec![0.0; width * height];
+    let next_id = Arc::new(AtomicUsize::new(0));
+    let threads: Vec<_> = (0..cores)
+        .map(|_| {
+            let next_id = next_id.clone();
+            thread::spawn(move || {
+                let mut sol: Vec<(usize, Vec<f32>)> = Vec::new();
+                loop {
+                    let id = next_id.fetch_add(8, Ordering::Relaxed);
+                    if id >= width * height {
+                        break;
+                    }
+                    let lx: Vec<_> = (id..(id + 8)).map(|a| (a / width) as f32).collect();
+                    let ly: Vec<_> = (id..(id + 8)).map(|a| (a % width) as f32).collect();
+                    let mut x = f32x8::load_unaligned(&lx);
+                    let mut y = f32x8::load_unaligned(&ly);
+                    x -= half_width;
+                    y -= half_height;
+                    x /= vzoom;
+                    y /= vzoom;
+                    x += vx0;
+                    y += vy0;
+                    let mut a = f32x8::splat(0.0);
+                    let mut b = f32x8::splat(0.0);
+                    for _ in 0..ITERATIONS {
+                        let tmp_a = a * a - b * b + x;
+                        b = v2 * a * b + y;
+                        a = tmp_a;
+                    }
+                    let out = a * a + b * b;
+                    let mut outv = vec![0.0; 8];
+                    out.store_unaligned(&mut outv);
+                    sol.push((id, outv));
+                }
+                sol
+            })
+        })
+        .collect();
+    for t in threads {
+        let r = t.join().unwrap();
+        for s in r {
+            for i in (s.0)..(s.0 + 8) {
+                out[i] = s.1[i - s.0];
+            }
+        }
+    }
+    (out, now.elapsed())
 }
 
 fn native(width: u32, height: u32) -> (Vec<f32>, Duration) {
