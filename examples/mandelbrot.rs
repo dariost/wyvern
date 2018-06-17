@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::ops::{Add, Div, Mul, Sub};
 use std::path::PathBuf;
-use std::simd::f32x8;
+use std::simd::f32x16;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -21,6 +21,7 @@ use wyvern::core::builder::ProgramBuilder;
 use wyvern::core::executor::{Executable, Executor, Resource, IO};
 use wyvern::core::program::{ConstantVector, TokenValue};
 use wyvern::core::types::{Array, Constant, Variable};
+use wyvern::cpu::executor::CpuExecutor;
 use wyvern::vk::executor::VkExecutor;
 
 const WIDTH: u32 = 3840;
@@ -36,6 +37,8 @@ enum Mode {
     Cpu,
     Vk,
     MtNative,
+    MtSimdNative,
+    SimdNative,
 }
 
 trait Number:
@@ -50,7 +53,7 @@ trait Number:
 impl Number for f32 {}
 impl<'a> Number for Constant<'a, f32> {}
 
-fn get_opts() -> (Mode, u32, u32, PathBuf) {
+fn get_opts() -> (Mode, u32, u32, PathBuf, usize) {
     let args = App::new("mandelbrot")
         .author("Dario Ostuni <dario.ostuni@studenti.unimi.it>")
         .arg(
@@ -58,8 +61,15 @@ fn get_opts() -> (Mode, u32, u32, PathBuf) {
                 .short("m")
                 .long("mode")
                 .help("Compute engine")
-                .possible_values(&["native", "cpu", "vulkan", "mt"])
+                .possible_values(&["native", "cpu", "vulkan", "mt", "simd", "simd_mt"])
                 .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("iterations")
+                .short("i")
+                .long("iterations")
+                .help("Iterations per pixel")
                 .takes_value(true),
         )
         .arg(
@@ -90,6 +100,8 @@ fn get_opts() -> (Mode, u32, u32, PathBuf) {
         "native" => Mode::Native,
         "cpu" => Mode::Cpu,
         "vulkan" => Mode::Vk,
+        "simd_mt" => Mode::MtSimdNative,
+        "simd" => Mode::SimdNative,
         "mt" => Mode::MtNative,
         _ => unreachable!(),
     };
@@ -102,20 +114,26 @@ fn get_opts() -> (Mode, u32, u32, PathBuf) {
         Some(s) => s.parse().unwrap_or(HEIGHT),
     };
     let outfile = args.value_of("output").unwrap_or(OUTFILE);
-    (mode, width, height, PathBuf::from(outfile))
+    let iterations = match args.value_of("iterations") {
+        None => ITERATIONS,
+        Some(s) => s.parse().unwrap_or(ITERATIONS),
+    };
+    (mode, width, height, PathBuf::from(outfile), iterations)
 }
 
 fn main() {
-    let (mode, width, height, outfile_path) = get_opts();
+    let (mode, width, height, outfile_path, iterations) = get_opts();
     let mut outfile = BufWriter::new(File::create(outfile_path).unwrap());
     let mut encoder = Encoder::new(&mut outfile, width, height);
     encoder.set(ColorType::Grayscale).set(BitDepth::Eight);
     let mut writer = encoder.write_header().unwrap();
     let (data, time) = &match mode {
-        Mode::Native => native(width, height),
-        Mode::Cpu => unimplemented!(),
-        Mode::Vk => vk(width, height),
-        Mode::MtNative => mt(width, height),
+        Mode::Native => native(width, height, 1, iterations),
+        Mode::MtNative => native(width, height, num_cpus::get(), iterations),
+        Mode::Cpu => cpu(width, height, iterations),
+        Mode::Vk => vk(width, height, iterations),
+        Mode::SimdNative => simd(width, height, 1, iterations),
+        Mode::MtSimdNative => simd(width, height, num_cpus::get(), iterations),
     };
     let data = colorize(data);
     writer.write_image_data(&data).unwrap();
@@ -128,18 +146,17 @@ fn colorize(data: &[f32]) -> Vec<u8> {
         .collect()
 }
 
-fn mt(width: u32, height: u32) -> (Vec<f32>, Duration) {
+fn simd(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>, Duration) {
     let width = width as usize;
     let height = height as usize;
-    let half_width = f32x8::splat(width as f32 / 2.0);
-    let half_height = f32x8::splat(height as f32 / 2.0);
-    let vzoom = f32x8::splat(ZOOM);
-    let vx0 = f32x8::splat(CENTER_X);
-    let vy0 = f32x8::splat(CENTER_Y);
-    let v2 = f32x8::splat(2.0);
-    assert_eq!((width * height) % 8, 0);
+    let half_width = f32x16::splat(width as f32 / 2.0);
+    let half_height = f32x16::splat(height as f32 / 2.0);
+    let vzoom = f32x16::splat(ZOOM);
+    let vx0 = f32x16::splat(CENTER_X);
+    let vy0 = f32x16::splat(CENTER_Y);
+    let v2 = f32x16::splat(2.0);
+    assert_eq!((width * height) % 16, 0);
     let now = Instant::now();
-    let cores = num_cpus::get();
     let mut out = vec![0.0; width * height];
     let next_id = Arc::new(AtomicUsize::new(0));
     let threads: Vec<_> = (0..cores)
@@ -148,29 +165,29 @@ fn mt(width: u32, height: u32) -> (Vec<f32>, Duration) {
             thread::spawn(move || {
                 let mut sol: Vec<(usize, Vec<f32>)> = Vec::new();
                 loop {
-                    let id = next_id.fetch_add(8, Ordering::Relaxed);
+                    let id = next_id.fetch_add(16, Ordering::Relaxed);
                     if id >= width * height {
                         break;
                     }
-                    let lx: Vec<_> = (id..(id + 8)).map(|a| (a / width) as f32).collect();
-                    let ly: Vec<_> = (id..(id + 8)).map(|a| (a % width) as f32).collect();
-                    let mut x = f32x8::load_unaligned(&lx);
-                    let mut y = f32x8::load_unaligned(&ly);
+                    let lx: Vec<_> = (id..(id + 16)).map(|a| (a % width) as f32).collect();
+                    let ly: Vec<_> = (id..(id + 16)).map(|a| (a / width) as f32).collect();
+                    let mut x = f32x16::load_unaligned(&lx);
+                    let mut y = f32x16::load_unaligned(&ly);
                     x -= half_width;
                     y -= half_height;
                     x /= vzoom;
                     y /= vzoom;
                     x += vx0;
                     y += vy0;
-                    let mut a = f32x8::splat(0.0);
-                    let mut b = f32x8::splat(0.0);
-                    for _ in 0..ITERATIONS {
+                    let mut a = f32x16::splat(0.0);
+                    let mut b = f32x16::splat(0.0);
+                    for _ in 0..iterations {
                         let tmp_a = a * a - b * b + x;
                         b = v2 * a * b + y;
                         a = tmp_a;
                     }
                     let out = a * a + b * b;
-                    let mut outv = vec![0.0; 8];
+                    let mut outv = vec![0.0; 16];
                     out.store_unaligned(&mut outv);
                     sol.push((id, outv));
                 }
@@ -181,7 +198,7 @@ fn mt(width: u32, height: u32) -> (Vec<f32>, Duration) {
     for t in threads {
         let r = t.join().unwrap();
         for s in r {
-            for i in (s.0)..(s.0 + 8) {
+            for i in (s.0)..(s.0 + 16) {
                 out[i] = s.1[i - s.0];
             }
         }
@@ -189,30 +206,78 @@ fn mt(width: u32, height: u32) -> (Vec<f32>, Duration) {
     (out, now.elapsed())
 }
 
-fn native(width: u32, height: u32) -> (Vec<f32>, Duration) {
-    let mut v = Vec::new();
+fn native(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>, Duration) {
+    let width = width as usize;
+    let height = height as usize;
+    let mut v = vec![0.0; width * height];
     let now = Instant::now();
-    for y in 0..height {
-        for x in 0..width {
-            let (x, y) = pixel2coordinates(
-                x as f32,
-                y as f32,
-                CENTER_X,
-                CENTER_Y,
-                width as f32,
-                height as f32,
-                ZOOM,
-                2.0,
-            );
-            v.push(mandelbrot(x, y, 0.0, 2.0, ITERATIONS));
+    let next_id = Arc::new(AtomicUsize::new(0));
+    let threads: Vec<_> = (0..cores)
+        .map(|_| {
+            let next_id = next_id.clone();
+            thread::spawn(move || {
+                let mut sol: Vec<(usize, f32)> = Vec::new();
+                loop {
+                    let id = next_id.fetch_add(1, Ordering::Relaxed);
+                    if id >= width * height {
+                        break;
+                    }
+                    let (x, y) = pixel2coordinates(
+                        (id % width) as f32,
+                        (id / width) as f32,
+                        CENTER_X,
+                        CENTER_Y,
+                        width as f32,
+                        height as f32,
+                        ZOOM,
+                        2.0,
+                    );
+                    sol.push((id, mandelbrot(x, y, 0.0, 2.0, iterations)));
+                }
+                sol
+            })
+        })
+        .collect();
+    for t in threads {
+        let r = t.join().unwrap();
+        for s in r {
+            v[s.0] = s.1;
         }
     }
     (v, now.elapsed())
 }
 
-fn vk(width: u32, height: u32) -> (Vec<f32>, Duration) {
+fn cpu(width: u32, height: u32, iterations: usize) -> (Vec<f32>, Duration) {
     let builder = ProgramBuilder::new();
-    wyvern_program(&builder);
+    wyvern_program(&builder, iterations);
+    let program = builder.finalize().unwrap();
+    let executor = CpuExecutor::new(Default::default()).unwrap();
+    let mut executable = executor.compile(program).unwrap();
+    let input = executor.new_resource().unwrap();
+    let output = executor.new_resource().unwrap();
+    input.set_data(TokenValue::Vector(ConstantVector::U32(vec![width, height])));
+    output.set_data(TokenValue::Vector(ConstantVector::F32(vec![
+        0.0;
+        (width * height)
+            as usize
+    ])));
+    executable.bind("input", IO::Input, input.clone());
+    executable.bind("output", IO::Output, output.clone());
+    let now = Instant::now();
+    executable.run().unwrap();
+    let time = now.elapsed();
+    (
+        match output.get_data() {
+            TokenValue::Vector(ConstantVector::F32(x)) => x,
+            _ => unreachable!(),
+        },
+        time,
+    )
+}
+
+fn vk(width: u32, height: u32, iterations: usize) -> (Vec<f32>, Duration) {
+    let builder = ProgramBuilder::new();
+    wyvern_program(&builder, iterations);
     let program = builder.finalize().unwrap();
     let executor = VkExecutor::new(Default::default()).unwrap();
     let mut executable = executor.compile(program).unwrap();
@@ -238,7 +303,8 @@ fn vk(width: u32, height: u32) -> (Vec<f32>, Duration) {
     )
 }
 
-fn wyvern_program(b: &ProgramBuilder) {
+fn wyvern_program(b: &ProgramBuilder, iterations: usize) {
+    let iterations = Constant::new(iterations as u32, b);
     let zero = Constant::new(0_u32, b);
     let fzero = Constant::new(0_f32, b);
     let one = Constant::new(1_u32, b);
@@ -266,7 +332,7 @@ fn wyvern_program(b: &ProgramBuilder) {
             let (local_x, local_y) = pixel2coordinates(
                 local_x, local_y, center_x, center_y, fwidth, fheight, zoom, ftwo,
             );
-            let value = mandelbrot(local_x, local_y, fzero, ftwo, ITERATIONS);
+            let value = mandelbrot_wy(local_x, local_y, fzero, ftwo, iterations);
             output.at(cell_id).store(value);
             cell.store(cell_id + size);
         },
@@ -298,5 +364,35 @@ fn mandelbrot<T: Number>(a0: T, b0: T, zero: T, two: T, iterations: usize) -> T 
         b = two * a * b + b0;
         a = tmp_a;
     }
+    a * a + b * b
+}
+
+fn mandelbrot_wy<'a>(
+    a0: Constant<'a, f32>,
+    b0: Constant<'a, f32>,
+    zero: Constant<'a, f32>,
+    two: Constant<'a, f32>,
+    iterations: Constant<'a, u32>,
+) -> Constant<'a, f32> {
+    let builder = a0.info.builder;
+    let a_storage = Variable::new(builder);
+    a_storage.store(zero);
+    let b_storage = Variable::new(builder);
+    b_storage.store(zero);
+    let i = Variable::new(builder);
+    i.store(Constant::new(0, builder));
+    builder.while_loop(
+        |_| i.load().lt(iterations),
+        |_| {
+            let a = a_storage.load();
+            let b = b_storage.load();
+            let tmp_a = a * a - b * b + a0;
+            b_storage.store(two * a * b + b0);
+            a_storage.store(tmp_a);
+            i.store(i.load() + 1);
+        },
+    );
+    let a = a_storage.load();
+    let b = b_storage.load();
     a * a + b * b
 }
