@@ -137,7 +137,7 @@ fn main() {
     };
     let data = colorize(data);
     writer.write_image_data(&data).unwrap();
-    println!("Time: {:?}", time);
+    println!("{}.{:09}", time.as_secs(), time.subsec_nanos());
 }
 
 fn colorize(data: &[f32]) -> Vec<u8> {
@@ -147,6 +147,7 @@ fn colorize(data: &[f32]) -> Vec<u8> {
 }
 
 fn simd(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>, Duration) {
+    let now = Instant::now();
     let width = width as usize;
     let height = height as usize;
     let half_width = f32x16::splat(width as f32 / 2.0);
@@ -156,7 +157,6 @@ fn simd(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>, 
     let vy0 = f32x16::splat(CENTER_Y);
     let v2 = f32x16::splat(2.0);
     assert_eq!((width * height) % 16, 0);
-    let now = Instant::now();
     let mut out = vec![0.0; width * height];
     let next_id = Arc::new(AtomicUsize::new(0));
     let threads: Vec<_> = (0..cores)
@@ -207,10 +207,10 @@ fn simd(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>, 
 }
 
 fn native(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>, Duration) {
+    let now = Instant::now();
     let width = width as usize;
     let height = height as usize;
     let mut v = vec![0.0; width * height];
-    let now = Instant::now();
     let next_id = Arc::new(AtomicUsize::new(0));
     let threads: Vec<_> = (0..cores)
         .map(|_| {
@@ -248,6 +248,7 @@ fn native(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>
 }
 
 fn cpu(width: u32, height: u32, iterations: usize) -> (Vec<f32>, Duration) {
+    let now = Instant::now();
     let builder = ProgramBuilder::new();
     wyvern_program(&builder, iterations);
     let program = builder.finalize().unwrap();
@@ -263,19 +264,18 @@ fn cpu(width: u32, height: u32, iterations: usize) -> (Vec<f32>, Duration) {
     ])));
     executable.bind("input", IO::Input, input.clone());
     executable.bind("output", IO::Output, output.clone());
-    let now = Instant::now();
     executable.run().unwrap();
-    let time = now.elapsed();
     (
         match output.get_data() {
             TokenValue::Vector(ConstantVector::F32(x)) => x,
             _ => unreachable!(),
         },
-        time,
+        now.elapsed(),
     )
 }
 
 fn vk(width: u32, height: u32, iterations: usize) -> (Vec<f32>, Duration) {
+    let now = Instant::now();
     let builder = ProgramBuilder::new();
     wyvern_program(&builder, iterations);
     let program = builder.finalize().unwrap();
@@ -291,15 +291,13 @@ fn vk(width: u32, height: u32, iterations: usize) -> (Vec<f32>, Duration) {
     ])));
     executable.bind("input", IO::Input, input.clone());
     executable.bind("output", IO::Output, output.clone());
-    let now = Instant::now();
     executable.run().unwrap();
-    let time = now.elapsed();
     (
         match output.get_data() {
             TokenValue::Vector(ConstantVector::F32(x)) => x,
             _ => unreachable!(),
         },
-        time,
+        now.elapsed(),
     )
 }
 

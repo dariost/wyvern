@@ -4,14 +4,17 @@
 #include <stdint.h>
 #include <sys/time.h>
 
-#define ITERATIONS 2000
-#define WIDTH 3840
-#define HEIGHT 2160
+#ifndef BLOCK_SIZE
+#define BLOCK_SIZE 128
+#endif
+#ifndef BLOCK_COUNT
+#define BLOCK_COUNT 128
+#endif
 #define CENTER_X -0.75
 #define CENTER_Y 0.0
-#define ZOOM (float(HEIGHT) / 2.5)
+#define ZOOM (float(height) / 2.5)
 
-__global__ void mandelbrot(unsigned* dim, float* output) {
+__global__ void mandelbrot(unsigned* dim, float* output, unsigned iterations) {
     unsigned width = dim[0];
     unsigned height = dim[1];
     unsigned tid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -25,7 +28,7 @@ __global__ void mandelbrot(unsigned* dim, float* output) {
         x += CENTER_X;
         y += CENTER_Y;
         float a = 0.0, b = 0.0;
-        for(unsigned i = 0; i < ITERATIONS; i++) {
+        for(unsigned i = 0; i < iterations; i++) {
             float tmp_a = a * a - b * b + x;
             b = 2.0 * a * b + y;
             a = tmp_a;
@@ -34,12 +37,18 @@ __global__ void mandelbrot(unsigned* dim, float* output) {
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    assert(argc == 4);
+    unsigned WIDTH, HEIGHT, ITERATIONS;
+    WIDTH = atoi(argv[1]);
+    HEIGHT = atoi(argv[2]);
+    ITERATIONS = atoi(argv[3]);
     unsigned* host_dim;
     float* host_output;
     unsigned* device_dim;
     float* device_output;
     struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
     host_dim = (unsigned*)malloc(2 * sizeof(unsigned));
     assert(host_dim);
     host_output = (float*)malloc(WIDTH * HEIGHT * sizeof(float));
@@ -49,13 +58,11 @@ int main() {
     host_dim[0] = WIDTH;
     host_dim[1] = HEIGHT;
     cudaMemcpy(device_dim, host_dim, 2 * sizeof(unsigned), cudaMemcpyHostToDevice);
-    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-    mandelbrot<<<(WIDTH * HEIGHT + 256) / 256, 256>>>(device_dim, device_output);
-    cudaDeviceSynchronize();
-    clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+    mandelbrot<<<BLOCK_COUNT, BLOCK_SIZE>>>(device_dim, device_output, ITERATIONS);
     cudaMemcpy(host_output, device_output, WIDTH * HEIGHT * sizeof(float), cudaMemcpyDeviceToHost);
     cudaFree(device_output);
     cudaFree(device_dim);
+    clock_gettime(CLOCK_MONOTONIC_RAW, &end);
     FILE* output = fopen("out.ppm", "w");
     fprintf(output, "P2\n%u %u\n255\n", host_dim[0], host_dim[1]);
     for(unsigned i = 0; i < WIDTH * HEIGHT; i++) {
@@ -66,6 +73,6 @@ int main() {
     free(host_output);
     uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
     double delta = double(delta_us) / 1e6;
-    printf("Time: %.3lf\n", delta);
+    printf("%.9lf\n", delta);
     return 0;
 }

@@ -10,10 +10,6 @@ import wyvern as wy
 from time import time
 import png
 
-WIDTH = 3840
-HEIGHT = 2160
-ITERATIONS = 2000
-
 
 def mandelbrot(g_ctx: wy.builder.Context, id: str, a0: str, b0: str,
                iterations: int):
@@ -73,6 +69,10 @@ def program(size: int, center_x: float, center_y: float, zoom: float,
 
 
 if __name__ == "__main__":
+    assert len(sys.argv) == 4
+    WIDTH = int(sys.argv[1])
+    HEIGHT = int(sys.argv[2])
+    ITERATIONS = int(sys.argv[3])
     result = program(WIDTH * HEIGHT, -0.75, 0.0, HEIGHT / 2.5, ITERATIONS)
     executor = wy.WyVkExecutor()
     executable = executor.compile(result)
@@ -85,7 +85,8 @@ if __name__ == "__main__":
     executable.bind("output", wy.IoType.output.value, output)
     executable.run()
     result = output.get_data_array_float32()
-    print("Time: %.3fs" % (time() - start),)
+    print("%.9f" % (time() - start,))
+
     def mapper(x):
         if x <= 2.0:
             return 0
