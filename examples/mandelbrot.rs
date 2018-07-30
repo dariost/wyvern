@@ -11,6 +11,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::ops::{Add, Div, Mul, Sub};
 use std::path::PathBuf;
+#[cfg(simd)]
 use std::simd::f32x16;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -146,6 +147,12 @@ fn colorize(data: &[f32]) -> Vec<u8> {
         .collect()
 }
 
+#[cfg(not(simd))]
+fn simd(_: u32, _: u32, _: usize, _: usize) -> (Vec<f32>, Duration) {
+    unreachable!("simd support not enabled!")
+}
+
+#[cfg(simd)]
 fn simd(width: u32, height: u32, cores: usize, iterations: usize) -> (Vec<f32>, Duration) {
     let now = Instant::now();
     let width = width as usize;
