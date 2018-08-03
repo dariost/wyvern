@@ -54,7 +54,7 @@ trait Number:
 impl Number for f32 {}
 impl<'a> Number for Constant<'a, f32> {}
 
-fn get_opts() -> (Mode, u32, u32, PathBuf, usize) {
+fn get_opts() -> (Mode, u32, u32, PathBuf, usize, usize) {
     let args = App::new("mandelbrot")
         .author("Dario Ostuni <dario.ostuni@studenti.unimi.it>")
         .arg(
@@ -71,6 +71,13 @@ fn get_opts() -> (Mode, u32, u32, PathBuf, usize) {
                 .short("i")
                 .long("iterations")
                 .help("Iterations per pixel")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("cores")
+                .short("c")
+                .long("cores")
+                .help("Number of cores")
                 .takes_value(true),
         )
         .arg(
@@ -119,22 +126,26 @@ fn get_opts() -> (Mode, u32, u32, PathBuf, usize) {
         None => ITERATIONS,
         Some(s) => s.parse().unwrap_or(ITERATIONS),
     };
-    (mode, width, height, PathBuf::from(outfile), iterations)
+    let cores = match args.value_of("cores") {
+        None => num_cpus::get(),
+        Some(s) => s.parse().unwrap_or(num_cpus::get()),
+    };
+    (mode, width, height, PathBuf::from(outfile), iterations, cores)
 }
 
 fn main() {
-    let (mode, width, height, outfile_path, iterations) = get_opts();
+    let (mode, width, height, outfile_path, iterations, cores) = get_opts();
     let mut outfile = BufWriter::new(File::create(outfile_path).unwrap());
     let mut encoder = Encoder::new(&mut outfile, width, height);
     encoder.set(ColorType::Grayscale).set(BitDepth::Eight);
     let mut writer = encoder.write_header().unwrap();
     let (data, time) = &match mode {
         Mode::Native => native(width, height, 1, iterations),
-        Mode::MtNative => native(width, height, num_cpus::get(), iterations),
+        Mode::MtNative => native(width, height, cores, iterations),
         Mode::Cpu => cpu(width, height, iterations),
         Mode::Vk => vk(width, height, iterations),
         Mode::SimdNative => simd(width, height, 1, iterations),
-        Mode::MtSimdNative => simd(width, height, num_cpus::get(), iterations),
+        Mode::MtSimdNative => simd(width, height, cores, iterations),
     };
     let data = colorize(data);
     writer.write_image_data(&data).unwrap();
