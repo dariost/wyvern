@@ -1,4 +1,4 @@
-#![feature(proc_macro, specialization)]
+#![feature(use_extern_macros, specialization)]
 
 extern crate pyo3;
 extern crate serde_json;
@@ -12,28 +12,26 @@ use wyvern::core::program::Program;
 use wyvern::vk::executor::VkExecutor;
 use wyvern::vk::executable::VkExecutable;
 use wyvern::core::program::{ConstantScalar, ConstantVector, TokenValue};
-use pyo3::py::{class, methods};
-use pyo3::py::modinit as pymodinit;
 
-#[class]
+#[pyclass]
 struct WyVkExecutor {
     token: PyToken,
     data: VkExecutor
 }
 
-#[class]
+#[pyclass]
 struct WyVkExecutable {
     token: PyToken,
     data: VkExecutable
 }
 
-#[class]
+#[pyclass]
 struct WyVkResource {
     token: PyToken,
     data: Arc<VkResource>
 }
 
-#[methods]
+#[pymethods]
 impl WyVkResource {
     fn set_data_uint32(&self, value: u32) -> PyResult<()> {
         self.data.set_data(TokenValue::Scalar(ConstantScalar::U32(value)));
@@ -114,7 +112,7 @@ impl WyVkResource {
     }
 }
 
-#[methods]
+#[pymethods]
 impl WyVkExecutable {
     fn bind(&mut self, name: String, kind: String, resource: PyObject) -> PyResult<()> {
         let py = self.token.py();
@@ -149,7 +147,7 @@ impl WyVkExecutable {
 }
 
 #[allow(non_snake_case)]
-#[methods]
+#[pymethods]
 impl WyVkExecutor {
     #[new]
      fn __new__(obj: &PyRawObject) -> PyResult<()> {
