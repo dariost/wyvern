@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.abspath("./"))
 sys.path.append(os.path.abspath("../"))
 
-import wyvern as wy
+import wyvern as wy  # noqa
 
 
 def mul(n):

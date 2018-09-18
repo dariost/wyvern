@@ -174,7 +174,8 @@ impl Executable for VkExecutable {
             self.queue.family(),
         ).unwrap()
             .dispatch(
-                [self.work_size, 1, 1],
+                // FIXME: [self.work_size, 1, 1],
+                [128, 1, 1],
                 self.pipeline.clone(),
                 sanitized_set,
                 (),
