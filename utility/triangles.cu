@@ -25,6 +25,8 @@ __global__ void matmul(const unsigned n, const unsigned* a, const unsigned* b, u
 }
 
 int main(int argc, char* argv[]) {
+    assert(argc == 2);
+    freopen(argv[1], "r", stdin);
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
     unsigned* h_a,* h_b,* h_c,* d_a,* d_b,* d_c;

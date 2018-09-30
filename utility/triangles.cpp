@@ -6,7 +6,9 @@
 
 using namespace std;
 
-int main() {
+int main(int argc, char* argv[]) {
+    assert(argc == 2);
+    freopen(argv[1], "r", stdin);
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
     size_t n, m;
