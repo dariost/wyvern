@@ -1,0 +1,16 @@
+{
+    "name": "Triangles",
+    "executors": {
+        "CPU": [["tcpu"], [[]]],
+        "MT CPU": [["tmtcpu"], [[]]],
+        "NumPy": [["tnumpy"], [[]]],
+        "OpenCL": [["topencl"], [[]]],
+        "CUDA": [["tcuda"], [[]]],
+        "Wyvern Vulkan": [["twyvern"], [[]]]
+    },
+    "time_limit": 5.0,
+    "parameters": ["INPUT"],
+    "tests": [
+        ["triangles/input/1225"]
+    ]
+}

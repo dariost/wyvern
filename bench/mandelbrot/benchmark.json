@@ -1,0 +1,21 @@
+{
+    "name": "Mandelbrot",
+    "executors": {
+        "CPU": [["mrust", "-m", "native"], [["-w"], ["-h"], ["-i"]]],
+        "MT CPU": [["mrust", "-m", "mt"], [["-w"], ["-h"], ["-i"]]],
+        "OpenCL": [["mopencl"], [[], [], []]],
+        "CUDA": [["mcuda"], [[], [], []]],
+        "Wyvern Vulkan": [["mrust", "-m", "vulkan"], [["-w"], ["-h"], ["-i"]]]
+    },
+    "time_limit": 5.0,
+    "parameters": ["WIDTH", "HEIGHT", "ITERATIONS"],
+    "tests": [
+        [640, 480, 2000],
+        [800, 600, 5000],
+        [1024, 768, 10000],
+        [1280, 720, 20000],
+        [1920, 1080, 50000],
+        [2560, 1440, 100000],
+        [3840, 2160, 250000]
+    ]
+}
