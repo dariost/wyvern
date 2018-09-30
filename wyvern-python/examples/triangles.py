@@ -2,6 +2,7 @@
 
 import sys
 import os
+from time import time
 
 sys.path.append(os.path.abspath("./"))
 sys.path.append(os.path.abspath("../"))
@@ -42,15 +43,18 @@ def mul(n):
 
 
 if __name__ == "__main__":
-    n, m = [int(x) for x in input().strip().split()]
+    assert len(sys.argv) == 2
+    fin = open(sys.argv[1], "r")
+    n, m = [int(x) for x in fin.readline().strip().split()]
     g = [0] * (n * n)
     for _ in range(m):
-        a, b = [int(x) for x in input().strip().split()]
+        a, b = [int(x) for x in fin.readline().strip().split()]
         g[a * n + b] += 1
         g[b * n + a] += 1
     program = mul(n)
     executor = wy.WyVkExecutor()
     executable = executor.compile(program)
+    start = time()
     dev_a = executor.newResource()
     dev_b = executor.newResource()
     dev_c = executor.newResource()
@@ -73,5 +77,6 @@ if __name__ == "__main__":
     acc = 0
     for i in range(n):
         acc += out[i * n + i]
+    print("%.9f" % (time() - start,))
     assert acc % 6 == 0
     print("Triangles:", acc // 6, file=sys.stderr)
