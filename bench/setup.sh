@@ -32,5 +32,10 @@ gcc -O3 ../../utility/triangles.c -lOpenCL -Wno-deprecated-declarations -o topen
 g++ ../../utility/triangles.cpp -O3 -fopenmp -o tmtcpu
 g++ ../../utility/triangles.cpp -O3 -o tcpu
 
-../../utility/gen_dense_grid.py 35 35 > input/1225
+../../utility/gen_dense_grid.py 4 4 > input/16
+../../utility/gen_dense_grid.py 4 32 > input/128
+../../utility/gen_dense_grid.py 3 128 > input/384
+../../utility/gen_dense_grid.py 6 128 > input/768
+../../utility/gen_dense_grid.py 9 128 > input/1152
+../../utility/gen_dense_grid.py 12 128 > input/1536
 popd

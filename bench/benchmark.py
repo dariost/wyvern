@@ -5,6 +5,8 @@ import json
 import subprocess
 from copy import deepcopy
 
+MAX_TRIES = 100
+
 if __name__ == "__main__":
     assert len(sys.argv) == 2
     path = sys.argv[1]
@@ -33,7 +35,9 @@ if __name__ == "__main__":
             for i, prefix in enumerate(commands[1]):
                 execution_command += prefix
                 execution_command += [str(test[i])]
-            while cumulative_time <= data["time_limit"]:
+            output[pp][executor] = []
+            tries = 0
+            while cumulative_time <= data["time_limit"] and tries < MAX_TRIES:
                 try:
                     result = subprocess.run(
                         execution_command,
@@ -46,7 +50,8 @@ if __name__ == "__main__":
                     result_time = float('inf')
                 cumulative_time += result_time
                 results.append(result_time)
+                output[pp][executor].append(result_time)
+                tries += 1
             avg_time = sum(results) / len(results)
             print(formatted, "=>", "%.6f" % (avg_time,))
-            output[pp][executor] = avg_time
-    print(json.dumps(output), file=sys.stderr)
+    print(json.dumps(output, indent=4), file=sys.stderr)

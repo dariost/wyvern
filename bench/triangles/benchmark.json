@@ -8,9 +8,14 @@
         "CUDA": [["tcuda"], [[]]],
         "Wyvern Vulkan": [["twyvern"], [[]]]
     },
-    "time_limit": 5.0,
+    "time_limit": 60,
     "parameters": ["INPUT"],
     "tests": [
-        ["triangles/input/1225"]
+        ["triangles/input/16"],
+        ["triangles/input/128"],
+        ["triangles/input/384"],
+        ["triangles/input/768"],
+        ["triangles/input/1152"],
+        ["triangles/input/1536"]
     ]
 }
