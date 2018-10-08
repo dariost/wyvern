@@ -299,7 +299,7 @@ class Constant:
         const = Constant._new_constant(ctx, DataType.int32)
         p = ctx.getProgramBuilder()
         if type(value) == int:
-            if value < 2**31 or value >= 2**31:
+            if value < -2**31 or value >= 2**31:
                 raise ValueError
             p._add_command({
                 "Constant": [const._tid, {DataType.int32.value: value}]
