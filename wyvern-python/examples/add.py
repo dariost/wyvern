@@ -13,12 +13,9 @@ def add(N):
     builder = wy.ProgramBuilder()
     ctx = builder.newContext()
     ctx.declVariable("n", wy.DataType.uint32, wy.IoType.input)
-    ctx.declArray("a", wy.DataType.uint32, wy.IoType.input,
-                  ctx.n, N)
-    ctx.declArray("b", wy.DataType.uint32, wy.IoType.input,
-                  ctx.n, N)
-    ctx.declArray("c", wy.DataType.uint32, wy.IoType.output,
-                  ctx.n, N)
+    ctx.declArray("a", wy.DataType.uint32, wy.IoType.input, ctx.n, N)
+    ctx.declArray("b", wy.DataType.uint32, wy.IoType.input, ctx.n, N)
+    ctx.declArray("c", wy.DataType.uint32, wy.IoType.output, ctx.n, N)
     ctx.tid = ctx.workerId()
     ctx.tsize = ctx.numWorkers()
     def loop():

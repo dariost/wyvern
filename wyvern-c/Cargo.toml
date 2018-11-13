@@ -1,0 +1,13 @@
+[package]
+name = "wyvern-c"
+version = "0.1.0"
+authors = ["Dario Ostuni <dario.ostuni@gmail.com>"]
+
+[lib]
+name = "wyvern"
+crate-type = ["cdylib"]
+
+[dependencies]
+wyvern = { path = "../" }
+serde_json = "1.0"
+libc = "0.2"
