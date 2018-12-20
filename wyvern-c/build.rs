@@ -9,6 +9,7 @@ fn main() {
     cbindgen::Builder::new()
       .with_crate(crate_dir)
       .with_language(Language::C)
+      .with_include_guard("__WYVERN_C__")
       .generate()
       .expect("Unable to generate bindings")
       .write_to_file("wyvern.h");
