@@ -67,8 +67,8 @@ pub unsafe extern "C" fn wyvern_vk_executable_new(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wyvern_vk_executable_destroy(obj: *mut wyvern_vk_executor_t) {
-    Box::from_raw(obj as *mut VkExecutor);
+pub unsafe extern "C" fn wyvern_vk_executable_destroy(obj: *mut wyvern_vk_executable_t) {
+    Box::from_raw(obj as *mut VkExecutable);
 }
 
 #[no_mangle]
