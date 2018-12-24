@@ -7,6 +7,7 @@ extern crate wyvern;
 use libc::{free, malloc};
 use std::ffi::CStr;
 use std::ffi::c_void;
+use std::mem;
 use std::os::raw::c_char;
 use std::ptr::write;
 use std::slice;
@@ -201,51 +202,60 @@ pub unsafe extern "C" fn wyvern_vk_resource_get_data_float32(obj: *mut wyvern_vk
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wyvern_vk_resource_get_data_array_uint32(obj: *mut wyvern_vk_resource_t) -> wyvern_data_array_uint32_t {
+pub unsafe extern "C" fn wyvern_vk_resource_get_data_array_uint32(obj: *mut wyvern_vk_resource_t) -> *mut wyvern_data_array_uint32_t {
     let obj = &mut *(obj as *mut Arc<VkResource>);
     if let TokenValue::Vector(ConstantVector::U32(value)) = obj.get_data() {
         let data = malloc(value.len() * 4) as *mut u32;
         for i in 0..value.len() {
             write(data.offset(i as isize), value[i]);
         }
-        wyvern_data_array_uint32_t {
+        let arr = wyvern_data_array_uint32_t {
             size: value.len() as u32,
             data: data,
-        }
+        };
+        let arr_p = malloc(mem::size_of::<wyvern_data_array_uint32_t>()) as *mut wyvern_data_array_uint32_t;
+        write(arr_p, arr);
+        arr_p
     } else {
         panic!("Wrong type requested!");
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wyvern_vk_resource_get_data_array_int32(obj: *mut wyvern_vk_resource_t) -> wyvern_data_array_int32_t {
+pub unsafe extern "C" fn wyvern_vk_resource_get_data_array_int32(obj: *mut wyvern_vk_resource_t) -> *mut wyvern_data_array_int32_t {
     let obj = &mut *(obj as *mut Arc<VkResource>);
     if let TokenValue::Vector(ConstantVector::I32(value)) = obj.get_data() {
         let data = malloc(value.len() * 4) as *mut i32;
         for i in 0..value.len() {
             write(data.offset(i as isize), value[i]);
         }
-        wyvern_data_array_int32_t {
+        let arr = wyvern_data_array_int32_t {
             size: value.len() as u32,
             data: data,
-        }
+        };
+        let arr_p = malloc(mem::size_of::<wyvern_data_array_int32_t>()) as *mut wyvern_data_array_int32_t;
+        write(arr_p, arr);
+        arr_p
     } else {
         panic!("Wrong type requested!");
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wyvern_vk_resource_get_data_array_float32(obj: *mut wyvern_vk_resource_t) -> wyvern_data_array_float_t {
+pub unsafe extern "C" fn wyvern_vk_resource_get_data_array_float32(obj: *mut wyvern_vk_resource_t) -> *mut wyvern_data_array_float_t {
     let obj = &mut *(obj as *mut Arc<VkResource>);
     if let TokenValue::Vector(ConstantVector::F32(value)) = obj.get_data() {
         let data = malloc(value.len() * 4) as *mut f32;
         for i in 0..value.len() {
             write(data.offset(i as isize), value[i]);
         }
-        wyvern_data_array_float_t {
+        let arr = wyvern_data_array_float_t {
             size: value.len() as u32,
             data: data,
-        }
+        };
+        let arr_p = malloc(mem::size_of::<wyvern_data_array_float_t>()) as *mut wyvern_data_array_float_t;
+        write(arr_p, arr);
+        arr_p
     } else {
         panic!("Wrong type requested!");
     }
