@@ -262,16 +262,22 @@ pub unsafe extern "C" fn wyvern_vk_resource_get_data_array_float32(obj: *mut wyv
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wyvern_vk_resource_data_array_uint32_free(data: wyvern_data_array_uint32_t) {
-    free(data.data as *mut libc::c_void);
+pub unsafe extern "C" fn wyvern_vk_resource_data_array_uint32_free(data: *mut wyvern_data_array_uint32_t) {
+    let array = (&mut *data).data;
+    free(array as *mut libc::c_void);
+    free(data as *mut libc::c_void);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wyvern_vk_resource_data_array_int32_free(data: wyvern_data_array_int32_t) {
-    free(data.data as *mut libc::c_void);
+pub unsafe extern "C" fn wyvern_vk_resource_data_array_int32_free(data: *mut wyvern_data_array_int32_t) {
+    let array = (&mut *data).data;
+    free(array as *mut libc::c_void);
+    free(data as *mut libc::c_void);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn wyvern_vk_resource_data_array_float32_free(data: wyvern_data_array_float_t) {
-    free(data.data as *mut libc::c_void);
+pub unsafe extern "C" fn wyvern_vk_resource_data_array_float32_free(data: *mut wyvern_data_array_float_t) {
+    let array = (&mut *data).data;
+    free(array as *mut libc::c_void);
+    free(data as *mut libc::c_void);
 }
