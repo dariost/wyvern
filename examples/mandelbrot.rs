@@ -1,5 +1,3 @@
-#![feature(stdsimd)]
-
 extern crate clap;
 extern crate num_cpus;
 extern crate png;
