@@ -1,5 +1,3 @@
-#![feature(nll)]
-
 extern crate wyvern_core as wcore;
 
 use wcore::builder::ProgramBuilder;

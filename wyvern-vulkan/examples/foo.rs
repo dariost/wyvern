@@ -1,5 +1,3 @@
-#![feature(nll, fs_read_write)]
-
 extern crate byteorder;
 extern crate wyvern_core as wcore;
 extern crate wyvern_vulkan as wvulkan;

@@ -1,5 +1,3 @@
-#![feature(nll)]
-
 extern crate wyvern;
 use std::sync::Arc;
 use wyvern::core as wcore;

@@ -1,5 +1,3 @@
-#![feature(nll)]
-
 extern crate serde_json;
 extern crate wyvern_core;
 

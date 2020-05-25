@@ -1,4 +1,3 @@
-#![feature(nll)]
 #![allow(unused_imports)]
 
 extern crate wyvern_core as wcore;
