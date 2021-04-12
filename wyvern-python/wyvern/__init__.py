@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from .builder import ProgramBuilder
-from .types import DataType, IoType, Constant
-from .libwyvern import WyVkExecutor
+from .wytypes import DataType, IoType, Constant
+from .pywyvern import WyVkExecutor
 
 __all__ = [ProgramBuilder, DataType, IoType, Constant, WyVkExecutor]

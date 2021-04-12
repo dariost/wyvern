@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import json
-from .types import Variable, Array, Constant, IoType, DataType
+from .wytypes import Variable, Array, Constant, IoType, DataType
 from .util import UnreachableError
 from copy import deepcopy
 

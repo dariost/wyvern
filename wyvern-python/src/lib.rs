@@ -170,7 +170,7 @@ impl WyVkExecutor {
 }
 
 #[pymodule]
-fn init_mod(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pywyvern(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<WyVkExecutor>()?;
     m.add_class::<WyVkExecutable>()?;
     m.add_class::<WyVkResource>()?;
