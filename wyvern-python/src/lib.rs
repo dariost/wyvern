@@ -1,65 +1,66 @@
-#![feature(use_extern_macros, specialization)]
-
 extern crate pyo3;
 extern crate serde_json;
 extern crate wyvern;
 
-use wyvern::vk::resource::VkResource;
-use std::sync::Arc;
-use wyvern::core::executor::{Executor, Executable, Resource, IO};
 use pyo3::prelude::*;
+use std::sync::Arc;
+use wyvern::core::executor::{Executable, Executor, Resource, IO};
 use wyvern::core::program::Program;
-use wyvern::vk::executor::VkExecutor;
-use wyvern::vk::executable::VkExecutable;
 use wyvern::core::program::{ConstantScalar, ConstantVector, TokenValue};
+use wyvern::vk::executable::VkExecutable;
+use wyvern::vk::executor::VkExecutor;
+use wyvern::vk::resource::VkResource;
 
 #[pyclass]
 struct WyVkExecutor {
-    token: PyToken,
-    data: VkExecutor
+    data: VkExecutor,
 }
 
 #[pyclass]
 struct WyVkExecutable {
-    token: PyToken,
-    data: VkExecutable
+    data: VkExecutable,
 }
 
 #[pyclass]
 struct WyVkResource {
-    token: PyToken,
-    data: Arc<VkResource>
+    data: Arc<VkResource>,
 }
 
 #[pymethods]
 impl WyVkResource {
     fn set_data_uint32(&self, value: u32) -> PyResult<()> {
-        self.data.set_data(TokenValue::Scalar(ConstantScalar::U32(value)));
+        self.data
+            .set_data(TokenValue::Scalar(ConstantScalar::U32(value)));
         Ok(())
     }
 
     fn set_data_int32(&self, value: i32) -> PyResult<()> {
-        self.data.set_data(TokenValue::Scalar(ConstantScalar::I32(value)));
+        self.data
+            .set_data(TokenValue::Scalar(ConstantScalar::I32(value)));
         Ok(())
     }
 
     fn set_data_float32(&self, value: f32) -> PyResult<()> {
-        self.data.set_data(TokenValue::Scalar(ConstantScalar::F32(value)));
+        self.data
+            .set_data(TokenValue::Scalar(ConstantScalar::F32(value)));
         Ok(())
     }
 
     fn set_data_array_uint32(&self, value: Vec<u32>) -> PyResult<()> {
-        self.data.set_data(TokenValue::Vector(ConstantVector::U32(value)));
+        self.data
+            .set_data(TokenValue::Vector(ConstantVector::U32(value)));
         Ok(())
     }
 
     fn set_data_array_int32(&self, value: Vec<i32>) -> PyResult<()> {
-        self.data.set_data(TokenValue::Vector(ConstantVector::I32(value)));
+        self.data
+            .set_data(TokenValue::Vector(ConstantVector::I32(value)));
         Ok(())
     }
 
     fn set_data_array_float32(&self, value: Vec<f32>) -> PyResult<()> {
-        self.data.set_data(TokenValue::Vector(ConstantVector::F32(value)));
+        self.data
+            .set_data(TokenValue::Vector(ConstantVector::F32(value)));
         Ok(())
     }
 
@@ -114,8 +115,7 @@ impl WyVkResource {
 
 #[pymethods]
 impl WyVkExecutable {
-    fn bind(&mut self, name: String, kind: String, resource: PyObject) -> PyResult<()> {
-        let py = self.token.py();
+    fn bind(&mut self, name: String, kind: String, resource: &WyVkResource) -> PyResult<()> {
         let kind = if kind == "input" {
             IO::Input
         } else if kind == "output" {
@@ -123,7 +123,6 @@ impl WyVkExecutable {
         } else {
             unreachable!();
         };
-        let resource: &WyVkResource = PyObject::extract(&resource, py).expect("PyO3 error");
         self.data.bind(name, kind, resource.data.clone());
         Ok(())
     }
@@ -150,35 +149,30 @@ impl WyVkExecutable {
 #[pymethods]
 impl WyVkExecutor {
     #[new]
-     fn __new__(obj: &PyRawObject) -> PyResult<()> {
-         obj.init(|token| WyVkExecutor {
-             token,
-             data: VkExecutor::new(Default::default()).unwrap()
-         })
-     }
+    fn __new__() -> PyResult<WyVkExecutor> {
+        Ok(WyVkExecutor {
+            data: VkExecutor::new(Default::default()).unwrap(),
+        })
+    }
 
-     fn compile(&self, program: String) -> PyResult<Py<WyVkExecutable>> {
-         let py = self.token.py();
-         let program: Program = serde_json::from_str(&program).unwrap();
-         Py::new(py, |token| WyVkExecutable {
-             token,
-             data: self.data.compile(program).unwrap()
-         })
-     }
+    fn compile(&self, program: String) -> PyResult<WyVkExecutable> {
+        let program: Program = serde_json::from_str(&program).unwrap();
+        Ok(WyVkExecutable {
+            data: self.data.compile(program).unwrap(),
+        })
+    }
 
-     fn newResource(&self) -> PyResult<Py<WyVkResource>> {
-         let py = self.token.py();
-         Py::new(py, |token| WyVkResource {
-             token,
-             data: self.data.new_resource().unwrap()
-         })
-     }
+    fn newResource(&self) -> PyResult<WyVkResource> {
+        Ok(WyVkResource {
+            data: self.data.new_resource().unwrap(),
+        })
+    }
 }
 
-#[pymodinit(libwyvern)]
+#[pymodule]
 fn init_mod(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<WyVkExecutor>().unwrap();
-    m.add_class::<WyVkExecutable>().unwrap();
-    m.add_class::<WyVkResource>().unwrap();
+    m.add_class::<WyVkExecutor>()?;
+    m.add_class::<WyVkExecutable>()?;
+    m.add_class::<WyVkResource>()?;
     Ok(())
 }
