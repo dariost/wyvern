@@ -342,13 +342,14 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
             _ => {}
         };
     }
-    let _main_function =
-        b.begin_function(
+    let _main_function = b
+        .begin_function(
             ty.type_void,
             Some(main_function),
             FunctionControl::empty(),
             type_main_function,
-        ).map_err(|x| format!("{:?}", x))?;
+        )
+        .map_err(|x| format!("{:?}", x))?;
     label_map.insert(
         LabelId(0),
         b.begin_basic_block(None).map_err(|x| format!("{:?}", x))?,
@@ -356,8 +357,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
     for t in program.storage.keys() {
         if in_set.contains_key(&t) || out_set.contains_key(&t) {
             if let StorageType::Variable(tty) = program.storage[&t] {
-                let new_token =
-                    b.access_chain(
+                let new_token = b
+                    .access_chain(
                         match tty {
                             DataType::Bool => ty.type_stbool,
                             DataType::U32 => ty.type_stu32,
@@ -367,7 +368,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                         None,
                         token_map[&t],
                         &[cn.CONSTANT_0],
-                    ).map_err(|x| format!("{:?}", x))?;
+                    )
+                    .map_err(|x| format!("{:?}", x))?;
                 let result = token_map.insert(*t, new_token);
                 assert!(result.is_some());
             }
@@ -434,7 +436,6 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
         worker_id: global_invocation_id_word,
         num_workers: num_workers_word,
     };
-    #[cfg_attr(feature = "cargo-clippy", allow(too_many_arguments, many_single_char_names))]
     fn compile(
         operations: &[Op],
         b: &mut Builder,
@@ -481,7 +482,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                         cn.SCOPE_WORKGROUP,
                         cn.SCOPE_DEVICE,
                         cn.SEMANTIC_ACQUIRERELEASE,
-                    ).map_err(|x| format!("{:?}", x))?;
+                    )
+                    .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::WorkerId(r) => {
                     token_map.insert(r, w.worker_id);
@@ -547,7 +549,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.iadd(
@@ -555,7 +558,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.fadd(
@@ -563,7 +567,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -576,7 +581,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.isub(
@@ -584,7 +590,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.fsub(
@@ -592,7 +599,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -605,7 +613,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.imul(
@@ -613,7 +622,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.fmul(
@@ -621,7 +631,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -634,7 +645,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.sdiv(
@@ -642,7 +654,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.fdiv(
@@ -650,7 +663,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -663,7 +677,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.smod(
@@ -671,7 +686,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.fmod(
@@ -679,7 +695,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -723,7 +740,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.shift_left_logical(
@@ -731,7 +749,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => unreachable!(),
                         DataType::Bool => unreachable!(),
@@ -745,7 +764,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.shift_right_logical(
@@ -753,7 +773,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => unreachable!(),
                         DataType::Bool => unreachable!(),
@@ -767,7 +788,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.bitwise_and(
@@ -775,7 +797,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => unreachable!(),
                         DataType::Bool => {
@@ -784,7 +807,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                     };
                 }
@@ -796,7 +820,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.bitwise_or(
@@ -804,7 +829,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => unreachable!(),
                         DataType::Bool => {
@@ -813,7 +839,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                     };
                 }
@@ -825,7 +852,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.bitwise_xor(
@@ -833,7 +861,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => unreachable!(),
                         DataType::Bool => {
@@ -864,7 +893,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.ford_equal(
@@ -872,7 +902,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => {
                             b.logical_equal(
@@ -880,7 +911,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                     };
                 }
@@ -892,7 +924,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.ford_not_equal(
@@ -900,7 +933,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => {
                             b.logical_not_equal(
@@ -908,7 +942,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                     };
                 }
@@ -920,7 +955,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.sless_than(
@@ -928,7 +964,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.ford_less_than(
@@ -936,7 +973,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -949,7 +987,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.sless_than_equal(
@@ -957,7 +996,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.ford_less_than_equal(
@@ -965,7 +1005,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -978,7 +1019,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.sgreater_than(
@@ -986,7 +1028,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.ford_greater_than(
@@ -994,7 +1037,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -1007,7 +1051,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::I32 => {
                             b.sgreater_than_equal(
@@ -1015,7 +1060,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::F32 => {
                             b.ford_greater_than_equal(
@@ -1023,7 +1069,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                                 Some(token_map[&r]),
                                 token_map[&a],
                                 token_map[&d],
-                            ).map_err(|x| format!("{:?}", x))?;
+                            )
+                            .map_err(|x| format!("{:?}", x))?;
                         }
                         DataType::Bool => unreachable!(),
                     };
@@ -1036,7 +1083,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                             (token_map[&a0], label_map[&l0]),
                             (token_map[&a1], label_map[&l1]),
                         ],
-                    ).map_err(|x| format!("{:?}", x))?;
+                    )
+                    .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::If(ref cond_op, cond, l0, ref a0, lend) => {
                     let l0 = *label_map.entry(l0).or_insert_with(|| b.id());
@@ -1124,7 +1172,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                         token_map[&a],
                         None,
                         &[],
-                    ).map_err(|x| format!("{:?}", x))?;
+                    )
+                    .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::Store(r, a) => {
                     b.store(token_map[&r], token_map[&a], None, &[])
@@ -1134,8 +1183,8 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                     if in_set.contains_key(&r) || out_set.contains_key(&r) {
                         continue;
                     }
-                    let size_pointer =
-                        b.access_chain(
+                    let size_pointer = b
+                        .access_chain(
                             if st_set.contains(&r) {
                                 ty.type_stu32
                             } else {
@@ -1144,13 +1193,14 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                             None,
                             token_map[&r],
                             &[cn.CONSTANT_0],
-                        ).map_err(|x| format!("{:?}", x))?;
+                        )
+                        .map_err(|x| format!("{:?}", x))?;
                     b.store(size_pointer, token_map[&s], None, &[])
                         .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayLen(r, v) => {
-                    let size_pointer =
-                        b.access_chain(
+                    let size_pointer = b
+                        .access_chain(
                             if st_set.contains(&v) {
                                 ty.type_stu32
                             } else {
@@ -1159,34 +1209,38 @@ pub fn generate(program: &Program, version: VkVersion) -> Result<(Vec<u32>, Vec<
                             None,
                             token_map[&v],
                             &[cn.CONSTANT_0],
-                        ).map_err(|x| format!("{:?}", x))?;
+                        )
+                        .map_err(|x| format!("{:?}", x))?;
                     b.load(
                         get_const_type(r),
                         Some(token_map[&r]),
                         size_pointer,
                         None,
                         &[],
-                    ).map_err(|x| format!("{:?}", x))?;
+                    )
+                    .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayStore(v, i, a) => {
-                    let pointer =
-                        b.access_chain(
+                    let pointer = b
+                        .access_chain(
                             get_array_type(v, st_set.contains(&v)),
                             None,
                             token_map[&v],
                             &[cn.CONSTANT_1, token_map[&i]],
-                        ).map_err(|x| format!("{:?}", x))?;
+                        )
+                        .map_err(|x| format!("{:?}", x))?;
                     b.store(pointer, token_map[&a], None, &[])
                         .map_err(|x| format!("{:?}", x))?;
                 }
                 Op::ArrayLoad(r, v, i) => {
-                    let pointer =
-                        b.access_chain(
+                    let pointer = b
+                        .access_chain(
                             get_array_type(v, st_set.contains(&v)),
                             None,
                             token_map[&v],
                             &[cn.CONSTANT_1, token_map[&i]],
-                        ).map_err(|x| format!("{:?}", x))?;
+                        )
+                        .map_err(|x| format!("{:?}", x))?;
                     b.load(get_const_type(r), Some(token_map[&r]), pointer, None, &[])
                         .map_err(|x| format!("{:?}", x))?;
                 }

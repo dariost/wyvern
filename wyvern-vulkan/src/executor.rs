@@ -49,8 +49,8 @@ impl Executor for VkExecutor {
     type Executable = VkExecutable;
 
     fn new(_config: ()) -> Result<VkExecutor, String> {
-        let instance =
-            Instance::new(None, &InstanceExtensions::none(), None).map_err(|x| format!("{:?}", x))?;
+        let instance = Instance::new(None, &InstanceExtensions::none(), None)
+            .map_err(|x| format!("{:?}", x))?;
         let physical_device = PhysicalDevice::enumerate(&instance)
             .next()
             .ok_or("No Vulkan device found")?;
@@ -80,7 +80,8 @@ impl Executor for VkExecutor {
                 physical_device.supported_features(),
                 &DeviceExtensions::none(),
                 [(queue, 0.5)].iter().cloned(),
-            ).map_err(|x| format!("{:?}", x))?
+            )
+            .map_err(|x| format!("{:?}", x))?
         };
         let queue = queues.next().ok_or("No queue found")?;
         Ok(VkExecutor {
@@ -143,7 +144,8 @@ impl Executor for VkExecutor {
             }
         }
         let module = unsafe {
-            ShaderModule::from_words(self.device.clone(), &binary).map_err(|x| format!("{:?}", x))?
+            ShaderModule::from_words(self.device.clone(), &binary)
+                .map_err(|x| format!("{:?}", x))?
         };
         let num_bindings = bindings.iter().map(|x| x.0 + 1).max().unwrap_or(0);
         let layout = ModuleLayout {
@@ -156,7 +158,9 @@ impl Executor for VkExecutor {
                 self.device.clone(),
                 &unsafe { module.compute_entry_point(&CString::new("main").unwrap(), layout) },
                 &(),
-            ).map_err(|x| format!("{:?}", x))?
+                None,
+            )
+            .map_err(|x| format!("{:?}", x))?
         });
         let layout = ModuleLayout {
             bindings: bindings.clone(),
@@ -172,7 +176,8 @@ impl Executor for VkExecutor {
             },
             1,
             true,
-        ).unwrap();
+        )
+        .unwrap();
         Ok(VkExecutable {
             pool,
             module,

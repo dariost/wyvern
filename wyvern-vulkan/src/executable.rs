@@ -1,4 +1,4 @@
-// Copyright 2018 | Dario Ostuni <dario.ostuni@gmail.com>
+// Copyright 2018-2021 | Dario Ostuni <dario.ostuni@gmail.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ use executor::ModuleLayout;
 use generator::{BindType, Binding, VkVersion};
 use resource::ResourceType;
 use resource::VkResource;
+use std::iter::empty;
 use std::mem::swap;
 use std::sync::Arc;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
@@ -30,6 +31,7 @@ use vulkano::descriptor::descriptor_set::UnsafeDescriptorSetLayout;
 use vulkano::descriptor::descriptor_set::{DescriptorSet, DescriptorSetDesc};
 use vulkano::descriptor::pipeline_layout::PipelineLayout;
 use vulkano::descriptor::pipeline_layout::PipelineLayoutDesc;
+use vulkano::device::DeviceOwned;
 use vulkano::device::{Device, Queue};
 use vulkano::image::ImageViewAccess;
 use vulkano::pipeline::shader::ShaderModule;
@@ -99,7 +101,8 @@ impl Executable for VkExecutable {
         let unsafe_layout_object = UnsafeDescriptorSetLayout::new(
             self.device.clone(),
             (0..self.layout.num_bindings_in_set(0).unwrap()).map(|x| self.layout.descriptor(0, x)),
-        ).unwrap();
+        )
+        .unwrap();
         let layout = (0..1).map(|_| &unsafe_layout_object);
         let mut set = unsafe { self.pool.alloc(layout) }.unwrap().next().unwrap();
         let mut buffers = Vec::new();
@@ -113,22 +116,28 @@ impl Executable for VkExecutable {
                         CpuAccessibleBuffer::from_iter(
                             self.device.clone(),
                             BufferUsage::all(),
+                            true,
                             (0..size).map(|_| 0_u32),
-                        ).unwrap(),
+                        )
+                        .unwrap(),
                     )),
                     DataType::I32 => buffers.push(ResourceType::VI32(
                         CpuAccessibleBuffer::from_iter(
                             self.device.clone(),
                             BufferUsage::all(),
+                            true,
                             (0..size).map(|_| 0_i32),
-                        ).unwrap(),
+                        )
+                        .unwrap(),
                     )),
                     DataType::F32 => buffers.push(ResourceType::VF32(
                         CpuAccessibleBuffer::from_iter(
                             self.device.clone(),
                             BufferUsage::all(),
+                            true,
                             (0..size).map(|_| 0_f32),
-                        ).unwrap(),
+                        )
+                        .unwrap(),
                     )),
                     DataType::Bool => unreachable!(),
                 };
@@ -168,23 +177,27 @@ impl Executable for VkExecutable {
             set,
             layout: self.layout.clone(),
             buffers,
+            device: self.device.clone(),
         };
-        let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
-            self.device.clone(),
-            self.queue.family(),
-        ).unwrap()
-            .dispatch(
-                // FIXME: [self.work_size, 1, 1],
-                [128, 1, 1],
-                self.pipeline.clone(),
-                sanitized_set,
-                (),
+        let cmd = {
+            let mut command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
+                self.device.clone(),
+                self.queue.family(),
             )
-            .unwrap()
-            .build()
             .unwrap();
+            command_buffer
+                .dispatch(
+                    [self.work_size / 12, 1, 1], // FIXME: this assumes 12 CU
+                    self.pipeline.clone(),
+                    sanitized_set,
+                    empty::<u32>(),
+                    empty(),
+                )
+                .unwrap();
+            command_buffer.build().unwrap()
+        };
         let future = now(self.device.clone())
-            .then_execute(self.queue.clone(), command_buffer)
+            .then_execute(self.queue.clone(), cmd)
             .unwrap()
             .then_signal_fence_and_flush()
             .unwrap();
@@ -198,6 +211,7 @@ struct MyDescriptorSet {
     set: UnsafeDescriptorSet,
     layout: ModuleLayout,
     buffers: Vec<ResourceType>,
+    device: Arc<Device>,
 }
 
 unsafe impl DescriptorSetDesc for MyDescriptorSet {
@@ -210,6 +224,12 @@ unsafe impl DescriptorSetDesc for MyDescriptorSet {
     }
 }
 
+unsafe impl DeviceOwned for MyDescriptorSet {
+    fn device(&self) -> &Arc<Device> {
+        &self.device
+    }
+}
+
 unsafe impl DescriptorSet for MyDescriptorSet {
     fn inner(&self) -> &UnsafeDescriptorSet {
         &self.set
@@ -219,7 +239,7 @@ unsafe impl DescriptorSet for MyDescriptorSet {
         self.buffers.len()
     }
 
-    fn buffer(&self, index: usize) -> Option<(&BufferAccess, u32)> {
+    fn buffer(&self, index: usize) -> Option<(&dyn BufferAccess, u32)> {
         if index >= self.buffers.len() {
             return None;
         }
@@ -239,7 +259,7 @@ unsafe impl DescriptorSet for MyDescriptorSet {
         0
     }
 
-    fn image(&self, _index: usize) -> Option<(&ImageViewAccess, u32)> {
+    fn image(&self, _index: usize) -> Option<(&dyn ImageViewAccess, u32)> {
         None
     }
 }

@@ -68,37 +68,46 @@ impl Resource for VkResource {
     fn set_data(&self, value: TokenValue) {
         let resource = match value {
             TokenValue::Scalar(ConstantScalar::U32(x)) => ResourceType::U32(
-                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), x).unwrap(),
+                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), true, x)
+                    .unwrap(),
             ),
             TokenValue::Scalar(ConstantScalar::I32(x)) => ResourceType::I32(
-                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), x).unwrap(),
+                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), true, x)
+                    .unwrap(),
             ),
             TokenValue::Scalar(ConstantScalar::F32(x)) => ResourceType::F32(
-                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), x).unwrap(),
+                CpuAccessibleBuffer::from_data(self.device.clone(), BufferUsage::all(), true, x)
+                    .unwrap(),
             ),
             TokenValue::Vector(ConstantVector::U32(mut x)) => ResourceType::VU32({
                 x.insert(0, x.len() as u32);
                 CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
+                    true,
                     x.into_iter(),
-                ).unwrap()
+                )
+                .unwrap()
             }),
             TokenValue::Vector(ConstantVector::I32(mut x)) => ResourceType::VI32({
                 x.insert(0, x.len() as i32);
                 CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
+                    true,
                     x.into_iter(),
-                ).unwrap()
+                )
+                .unwrap()
             }),
             TokenValue::Vector(ConstantVector::F32(mut x)) => ResourceType::VF32({
                 x.insert(0, f32::from_bits(x.len() as u32));
                 CpuAccessibleBuffer::from_iter(
                     self.device.clone(),
                     BufferUsage::all(),
+                    true,
                     x.into_iter(),
-                ).unwrap()
+                )
+                .unwrap()
             }),
             _ => panic!("Invalid TokenValue type"),
         };
@@ -115,7 +124,6 @@ impl Resource for VkResource {
                 let v = v.read().unwrap();
                 let mut w = Vec::new();
                 let s = v.len();
-                #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
                 for i in 0..s {
                     w.push(v[i]);
                 }
@@ -127,7 +135,6 @@ impl Resource for VkResource {
                 let v = v.read().unwrap();
                 let mut w = Vec::new();
                 let s = v.len();
-                #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
                 for i in 0..s {
                     w.push(v[i]);
                 }
@@ -139,7 +146,6 @@ impl Resource for VkResource {
                 let v = v.read().unwrap();
                 let mut w = Vec::new();
                 let s = v.len();
-                #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
                 for i in 0..s {
                     w.push(v[i]);
                 }
